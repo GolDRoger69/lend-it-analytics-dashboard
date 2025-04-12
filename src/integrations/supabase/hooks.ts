@@ -9,7 +9,7 @@ export const useUsers = () => {
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('users') // Changed from 'Users' to 'users'
+        .from('users')
         .select('*');
       
       if (error) {
@@ -28,7 +28,7 @@ export const useProducts = () => {
     queryKey: ['products'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('products') // Changed from 'Products' to 'products'
+        .from('products')
         .select(`
           *,
           users(name)
@@ -42,7 +42,8 @@ export const useProducts = () => {
       // Format the data to match the expected structure
       return data.map(product => ({
         ...product,
-        owner_name: product.users?.name
+        owner_name: product.users?.name,
+        image_url: product.image_url || undefined
       }));
     }
   });

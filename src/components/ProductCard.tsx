@@ -3,11 +3,16 @@ import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Product } from "@/lib/mock-data";
 import { StarIcon } from "lucide-react";
 
 interface ProductCardProps {
-  product: Product & { 
+  product: {
+    product_id: number;
+    name: string;
+    category: string;
+    sub_category?: string;
+    rental_price: number;
+    image_url?: string;
     owner_name?: string;
     avg_rating?: number;
   };
