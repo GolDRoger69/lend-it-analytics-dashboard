@@ -31,7 +31,8 @@ export const useProducts = () => {
         .from('products')
         .select(`
           *,
-          users(name)
+          users(name),
+          reviews(rating)
         `);
       
       if (error) {
@@ -39,12 +40,26 @@ export const useProducts = () => {
         throw error;
       }
       
-      // Format the data to match the expected structure
-      return data.map(product => ({
-        ...product,
-        owner_name: product.users?.name,
-        image_url: product.image_url || undefined
-      }));
+      // Format the data to match the expected structure and calculate average ratings
+      return data.map(product => {
+        // Calculate average rating if reviews exist
+        const reviews = product.reviews || [];
+        const avgRating = reviews.length > 0 
+          ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+          : undefined;
+        
+        return {
+          product_id: product.product_id,
+          name: product.name,
+          category: product.category,
+          sub_category: product.sub_category,
+          rental_price: product.rental_price,
+          owner_name: product.users?.name,
+          avg_rating: avgRating,
+          // Add placeholder for image_url - would be populated from storage in a real app
+          image_url: `https://placehold.co/300x400?text=${encodeURIComponent(product.name)}`,
+        };
+      });
     }
   });
 };
@@ -203,13 +218,13 @@ export const useMaintenanceRecords = () => {
     queryKey: ['maintenance'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('maintenance') // Changed from 'Maintenance' to 'maintenance'
+        .from('maintenance')
         .select(`
           maintenance_id,
           last_cleaned,
           next_cleaning_due,
           status,
-          products(name)
+          products(name, product_id, category, sub_category, rental_price)
         `);
       
       if (error) {
@@ -219,8 +234,13 @@ export const useMaintenanceRecords = () => {
       
       // Format the data to match the expected structure
       return data.map(record => ({
-        ...record,
-        product_name: record.products?.name
+        maintenance_id: record.maintenance_id,
+        product_id: record.products?.product_id,
+        product_name: record.products?.name,
+        last_cleaned: record.last_cleaned,
+        next_cleaning_due: record.next_cleaning_due,
+        status: record.status,
+        product_details: record.products
       }));
     }
   });

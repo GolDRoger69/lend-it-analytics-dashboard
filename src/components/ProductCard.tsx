@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StarIcon } from "lucide-react";
 
-interface ProductCardProps {
+export interface ProductCardProps {
   product: {
     product_id: number;
     name: string;
