@@ -1,6 +1,8 @@
 
-import { createContext, useContext, useState, ReactNode } from "react";
-import { User, UserRole, mockApi } from "./mock-data";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { User } from "./mock-data";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
@@ -12,23 +14,61 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(mockApi.getCurrentUser());
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    // Check if there's a user stored in local storage for persistence
+    const storedUser = localStorage.getItem("currentUser");
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Error parsing stored user:", e);
+        localStorage.removeItem("currentUser");
+      }
+    }
+  }, []);
 
   const login = async (email: string, password: string) => {
-    // In a real application, this would make an API call to verify credentials
-    // For this mock, we'll just check if the email exists and return that user
-    const foundUser = mockApi.findRenters().find(user => user.email === email);
-    
-    if (foundUser) {
-      setUser(foundUser);
-      return true;
+    try {
+      // In a real app with proper auth, we would use supabase.auth.signInWithPassword
+      // For now, we'll use the database directly to check credentials
+      const { data, error } = await supabase
+        .from("Users")
+        .select("*")
+        .eq("email", email)
+        .single();
+
+      if (error) {
+        console.error("Login error:", error);
+        return false;
+      }
+
+      if (data && data.password === password) {
+        // In a real app, we would never store or compare raw passwords like this
+        const loggedInUser = {
+          user_id: data.user_id,
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          role: data.role as "renter" | "owner" | "admin"
+        };
+        
+        setUser(loggedInUser);
+        localStorage.setItem("currentUser", JSON.stringify(loggedInUser));
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("Login error:", error);
+      return false;
     }
-    
-    return false;
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem("currentUser");
   };
 
   return (

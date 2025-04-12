@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,16 +7,22 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
 import { Link } from "react-router-dom";
-import { mockApi } from "@/lib/mock-data";
 import { CalendarCheck2, CircleDollarSign, MessageSquare, ShoppingBag, Users } from "lucide-react";
+import { 
+  useMyProducts, 
+  useMyRentals, 
+  useMyProductMaintenance,
+  useRentalPairs
+} from "@/integrations/supabase/hooks";
 
 export function DashboardPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   
-  const userProducts = mockApi.getMyProducts();
-  const userRentals = mockApi.getMyRentals();
-  const maintenanceRecords = mockApi.getMyProductMaintenance();
+  const { data: userProducts = [], isLoading: isLoadingProducts } = useMyProducts(user?.user_id || null);
+  const { data: userRentals = [], isLoading: isLoadingRentals } = useMyRentals(user?.user_id || null);
+  const { data: maintenanceRecords = [], isLoading: isLoadingMaintenance } = useMyProductMaintenance(user?.user_id || null);
+  const { data: rentalPairs = [], isLoading: isLoadingRentalPairs } = useRentalPairs();
   
   if (!user) {
     return (
@@ -99,11 +104,10 @@ export function DashboardPage() {
                           { key: "rental_id", label: "ID" },
                           { key: "renter_name", label: "Renter" },
                           { key: "product_name", label: "Product" },
-                          { key: "rental_start", label: "Start Date" },
-                          { key: "rental_end", label: "End Date" },
                           { key: "total_cost", label: "Amount" },
                         ]}
-                        data={mockApi.findRentalPairs().slice(0, 3)}
+                        data={rentalPairs.slice(0, 3)}
+                        isLoading={isLoadingRentalPairs}
                       />
                     </div>
                     
@@ -118,6 +122,7 @@ export function DashboardPage() {
                           { key: "status", label: "Status" },
                         ]}
                         data={maintenanceRecords.filter(r => r.status === 'pending').slice(0, 3)}
+                        isLoading={isLoadingMaintenance}
                       />
                     </div>
                   </>
@@ -136,15 +141,22 @@ export function DashboardPage() {
                           { key: "total_cost", label: "Amount" },
                         ]}
                         data={userRentals.slice(0, 3)}
+                        isLoading={isLoadingRentals}
                       />
                     </div>
                     
                     <div className="space-y-2">
                       <h3 className="font-semibold">Recommended for You</h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {mockApi.getAllProducts().slice(0, 3).map(product => (
-                          <ProductCard key={product.product_id} product={product} />
-                        ))}
+                        {isLoadingProducts ? (
+                          <div className="col-span-3 h-40 flex items-center justify-center">
+                            Loading recommendations...
+                          </div>
+                        ) : (
+                          userProducts.slice(0, 3).map(product => (
+                            <ProductCard key={product.product_id} product={product} />
+                          ))
+                        )}
                       </div>
                     </div>
                   </>
@@ -203,6 +215,7 @@ export function DashboardPage() {
                     { key: "status", label: "Status" },
                   ]}
                   data={maintenanceRecords}
+                  isLoading={isLoadingMaintenance}
                 />
               </CardContent>
             </Card>

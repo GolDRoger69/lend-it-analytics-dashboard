@@ -9,7 +9,232 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      maintenance: {
+        Row: {
+          last_cleaned: string
+          maintenance_id: number
+          next_cleaning_due: string
+          product_id: number
+          status: string
+        }
+        Insert: {
+          last_cleaned: string
+          maintenance_id?: number
+          next_cleaning_due: string
+          product_id: number
+          status: string
+        }
+        Update: {
+          last_cleaned?: string
+          maintenance_id?: number
+          next_cleaning_due?: string
+          product_id?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          payment_date: string
+          payment_id: number
+          payment_status: string
+          rental_id: number
+          user_id: number
+        }
+        Insert: {
+          amount: number
+          payment_date?: string
+          payment_id?: number
+          payment_status: string
+          rental_id: number
+          user_id: number
+        }
+        Update: {
+          amount?: number
+          payment_date?: string
+          payment_id?: number
+          payment_status?: string
+          rental_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_rental_id_fkey"
+            columns: ["rental_id"]
+            isOneToOne: false
+            referencedRelation: "rentals"
+            referencedColumns: ["rental_id"]
+          },
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          available_quantity: number
+          category: string
+          name: string
+          owner_id: number
+          product_id: number
+          rental_price: number
+          sub_category: string
+        }
+        Insert: {
+          available_quantity: number
+          category: string
+          name: string
+          owner_id: number
+          product_id?: number
+          rental_price: number
+          sub_category: string
+        }
+        Update: {
+          available_quantity?: number
+          category?: string
+          name?: string
+          owner_id?: number
+          product_id?: number
+          rental_price?: number
+          sub_category?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      rentals: {
+        Row: {
+          product_id: number
+          rental_end: string
+          rental_id: number
+          rental_start: string
+          renter_id: number
+          status: string
+          total_cost: number
+        }
+        Insert: {
+          product_id: number
+          rental_end: string
+          rental_id?: number
+          rental_start: string
+          renter_id: number
+          status: string
+          total_cost: number
+        }
+        Update: {
+          product_id?: number
+          rental_end?: string
+          rental_id?: number
+          rental_start?: string
+          renter_id?: number
+          status?: string
+          total_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rentals_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "rentals_renter_id_fkey"
+            columns: ["renter_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      reviews: {
+        Row: {
+          comment: string | null
+          product_id: number
+          rating: number
+          review_date: string
+          review_id: number
+          user_id: number
+        }
+        Insert: {
+          comment?: string | null
+          product_id: number
+          rating: number
+          review_date?: string
+          review_id?: number
+          user_id: number
+        }
+        Update: {
+          comment?: string | null
+          product_id?: number
+          rating?: number
+          review_date?: string
+          review_id?: number
+          user_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          email: string
+          name: string
+          password: string
+          phone: string
+          role: string
+          user_id: number
+        }
+        Insert: {
+          email: string
+          name: string
+          password: string
+          phone: string
+          role: string
+          user_id?: number
+        }
+        Update: {
+          email?: string
+          name?: string
+          password?: string
+          phone?: string
+          role?: string
+          user_id?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
