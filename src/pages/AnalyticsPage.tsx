@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -213,7 +214,7 @@ export function AnalyticsPage() {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="product_name" angle={-45} textAnchor="end" height={70} />
                       <YAxis />
-                      <Tooltip formatter={(value) => `${value.toFixed(1)} days`} />
+                      <Tooltip formatter={(value) => `${typeof value === 'number' ? value.toFixed(1) : value} days`} />
                       <Bar dataKey="avg_duration" name="Avg. Days" fill="#82ca9d" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -299,7 +300,7 @@ export function AnalyticsPage() {
                       outerRadius={100}
                       fill="#8884d8"
                       dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      label={({ name, percent }) => `${name} ${typeof percent === 'number' ? (percent * 100).toFixed(0) : '0'}%`}
                     >
                       {COLORS.map((color, index) => (
                         <Cell key={`cell-${index}`} fill={color} />

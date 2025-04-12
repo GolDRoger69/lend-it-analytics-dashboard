@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +15,19 @@ import {
   useMyProductMaintenance,
   useRentalPairs
 } from "@/integrations/supabase/hooks";
+
+// Define valid category types
+type CategoryType = "mens" | "womens" | "accessories";
+
+// Helper function to validate and convert category strings
+const getValidCategory = (category: string): CategoryType => {
+  const normalized = category.toLowerCase();
+  if (normalized === "mens" || normalized === "womens" || normalized === "accessories") {
+    return normalized as CategoryType;
+  }
+  // Default fallback
+  return "accessories";
+};
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -34,6 +48,13 @@ export function DashboardPage() {
       </div>
     );
   }
+  
+  // Process products to ensure they have valid categories
+  const processedProducts = userProducts.map(product => ({
+    ...product,
+    category: getValidCategory(product.category),
+    sub_category: product.sub_category
+  }));
   
   return (
     <div>
@@ -153,7 +174,7 @@ export function DashboardPage() {
                             Loading recommendations...
                           </div>
                         ) : (
-                          userProducts.slice(0, 3).map(product => (
+                          processedProducts.slice(0, 3).map(product => (
                             <ProductCard 
                               key={product.product_id} 
                               product={{
@@ -196,7 +217,7 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {userProducts.map(product => (
+                {processedProducts.map(product => (
                   <ProductCard 
                     key={product.product_id} 
                     product={{
