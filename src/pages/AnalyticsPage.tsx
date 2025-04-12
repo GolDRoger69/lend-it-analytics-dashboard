@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -317,3 +316,16 @@ export function AnalyticsPage() {
     </div>
   );
 }
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const value = payload[0].value;
+    return (
+      <div className="custom-tooltip bg-background p-3 border rounded-md shadow-md">
+        <p className="label font-medium">{`${label}`}</p>
+        <p className="value text-primary">{`Revenue: $${typeof value === 'number' ? value.toFixed(2) : value}`}</p>
+      </div>
+    );
+  }
+  return null;
+};

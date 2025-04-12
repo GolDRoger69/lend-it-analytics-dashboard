@@ -34,13 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // In a real app with proper auth, we would use supabase.auth.signInWithPassword
       // For now, we'll use the database directly to check credentials
       const { data, error } = await supabase
-        .from("Users")
+        .from("users") // Changed from "Users" to "users" to match the case in Supabase
         .select("*")
         .eq("email", email)
         .single();
 
       if (error) {
         console.error("Login error:", error);
+        toast.error("Login failed: " + error.message);
         return false;
       }
 
@@ -59,9 +60,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
       
+      toast.error("Invalid email or password");
       return false;
     } catch (error) {
       console.error("Login error:", error);
+      toast.error("An unexpected error occurred");
       return false;
     }
   };
@@ -69,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("currentUser");
+    toast.success("Logged out successfully");
   };
 
   return (

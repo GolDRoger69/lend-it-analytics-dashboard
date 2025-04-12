@@ -1,5 +1,5 @@
 
-import { useQuery, useMutation, QueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "./client";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ export const useUsers = () => {
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Users')
+        .from('users') // Changed from 'Users' to 'users'
         .select('*');
       
       if (error) {
@@ -28,10 +28,10 @@ export const useProducts = () => {
     queryKey: ['products'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Products')
+        .from('products') // Changed from 'Products' to 'products'
         .select(`
           *,
-          Users(name)
+          users(name)
         `);
       
       if (error) {
@@ -42,7 +42,7 @@ export const useProducts = () => {
       // Format the data to match the expected structure
       return data.map(product => ({
         ...product,
-        owner_name: product.Users?.name
+        owner_name: product.users?.name
       }));
     }
   });
@@ -54,15 +54,15 @@ export const useRentalsWithDetails = () => {
     queryKey: ['rentals-with-details'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Rentals')
+        .from('rentals') // Changed from 'Rentals' to 'rentals'
         .select(`
           rental_id,
           total_cost,
           status,
           rental_start,
           rental_end,
-          Users!Rentals_renter_id_fkey(name),
-          Products(name, Users(name))
+          users!rentals_renter_id_fkey(name),
+          products(name, users(name))
         `);
       
       if (error) {
@@ -73,9 +73,9 @@ export const useRentalsWithDetails = () => {
       // Format the data to match the expected structure
       return data.map(rental => ({
         rental_id: rental.rental_id,
-        renter_name: rental.Users?.name,
-        product_name: rental.Products?.name,
-        owner_name: rental.Products?.Users?.name,
+        renter_name: rental.users?.name,
+        product_name: rental.products?.name,
+        owner_name: rental.products?.users?.name,
         total_cost: rental.total_cost,
         status: rental.status,
         rental_start: rental.rental_start,
@@ -91,11 +91,11 @@ export const useRentalPairs = () => {
     queryKey: ['rental-pairs'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Rentals')
+        .from('rentals') // Changed from 'Rentals' to 'rentals'
         .select(`
           rental_id,
-          Users!Rentals_renter_id_fkey(name),
-          Products(name, Users(name)),
+          users!rentals_renter_id_fkey(name),
+          products(name, users(name)),
           total_cost
         `);
       
@@ -107,9 +107,9 @@ export const useRentalPairs = () => {
       // Format the data to match the expected structure
       return data.map(rental => ({
         rental_id: rental.rental_id,
-        renter_name: rental.Users?.name,
-        product_name: rental.Products?.name,
-        owner_name: rental.Products?.Users?.name,
+        renter_name: rental.users?.name,
+        product_name: rental.products?.name,
+        owner_name: rental.products?.users?.name,
         total_cost: rental.total_cost
       }));
     }
@@ -122,10 +122,10 @@ export const useProductsByOwner = () => {
     queryKey: ['products-by-owner'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Users')
+        .from('users') // Changed from 'Users' to 'users'
         .select(`
           name,
-          Products(product_id)
+          products(product_id)
         `)
         .eq('role', 'owner');
       
@@ -136,10 +136,10 @@ export const useProductsByOwner = () => {
       
       // Format the data to match the expected structure
       return data
-        .filter(user => user.Products?.length > 0)
+        .filter(user => user.products?.length > 0)
         .map(user => ({
           owner_name: user.name,
-          total_products: user.Products?.length || 0
+          total_products: user.products?.length || 0
         }));
     }
   });
@@ -151,13 +151,13 @@ export const useMaintenanceRecords = () => {
     queryKey: ['maintenance'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('Maintenance')
+        .from('maintenance') // Changed from 'Maintenance' to 'maintenance'
         .select(`
           maintenance_id,
           last_cleaned,
           next_cleaning_due,
           status,
-          Products(name)
+          products(name)
         `);
       
       if (error) {
@@ -168,7 +168,7 @@ export const useMaintenanceRecords = () => {
       // Format the data to match the expected structure
       return data.map(record => ({
         ...record,
-        product_name: record.Products?.name
+        product_name: record.products?.name
       }));
     }
   });
@@ -182,7 +182,7 @@ export const useMyProducts = (userId: number | null) => {
       if (!userId) return [];
       
       const { data, error } = await supabase
-        .from('Products')
+        .from('products') // Changed from 'Products' to 'products'
         .select('*')
         .eq('owner_id', userId);
       
@@ -205,10 +205,10 @@ export const useMyRentals = (userId: number | null) => {
       if (!userId) return [];
       
       const { data, error } = await supabase
-        .from('Rentals')
+        .from('rentals') // Changed from 'Rentals' to 'rentals'
         .select(`
           *,
-          Products(name, Users(name))
+          products(name, users(name))
         `)
         .eq('renter_id', userId);
       
@@ -220,8 +220,8 @@ export const useMyRentals = (userId: number | null) => {
       // Format the data to match the expected structure
       return data.map(rental => ({
         ...rental,
-        product_name: rental.Products?.name,
-        owner_name: rental.Products?.Users?.name
+        product_name: rental.products?.name,
+        owner_name: rental.products?.users?.name
       }));
     },
     enabled: !!userId
@@ -236,7 +236,7 @@ export const useMyProductMaintenance = (userId: number | null) => {
       if (!userId) return [];
       
       const { data: products, error: productsError } = await supabase
-        .from('Products')
+        .from('products') // Changed from 'Products' to 'products'
         .select('product_id')
         .eq('owner_id', userId);
       
@@ -250,10 +250,10 @@ export const useMyProductMaintenance = (userId: number | null) => {
       const productIds = products.map(p => p.product_id);
       
       const { data, error } = await supabase
-        .from('Maintenance')
+        .from('maintenance') // Changed from 'Maintenance' to 'maintenance'
         .select(`
           *,
-          Products(name)
+          products(name)
         `)
         .in('product_id', productIds);
       
@@ -265,7 +265,7 @@ export const useMyProductMaintenance = (userId: number | null) => {
       // Format the data to match the expected structure
       return data.map(record => ({
         ...record,
-        product_name: record.Products?.name
+        product_name: record.products?.name
       }));
     },
     enabled: !!userId

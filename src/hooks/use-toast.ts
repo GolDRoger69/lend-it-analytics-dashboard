@@ -1,4 +1,5 @@
 import * as React from "react"
+import { toast as sonnerToast } from "sonner";
 
 const TOAST_LIMIT = 5
 const TOAST_REMOVE_DELAY = 1000000
@@ -13,7 +14,7 @@ type ToastProps = {
   variant?: "default" | "destructive"
 }
 
-type Toast = ToastProps & {
+type ToastType = ToastProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
@@ -56,7 +57,7 @@ type Action =
     }
 
 interface State {
-  toasts: Toast[]
+  toasts: ToastType[]
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
@@ -131,8 +132,7 @@ function dispatch(action: Action) {
   })
 }
 
-interface Toast extends ToastProps {
-  id: string
+interface ExtendedToast extends ToastType {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -151,7 +151,7 @@ function useToast() {
   }, [state])
 
   return {
-    toasts: state.toasts.map((toast): Toast => ({
+    toasts: state.toasts.map((toast): ExtendedToast => ({
       ...toast,
       open: true,
       onOpenChange: (open) => {
@@ -168,7 +168,6 @@ function useToast() {
         toast: {
           ...props,
           id,
-          open: true,
         },
       })
 
@@ -187,30 +186,16 @@ function useToast() {
   }
 }
 
-export { useToast, toast }
-
-type ToastContextType = ReturnType<typeof useToast>
-
 const toast = {
   error: (message: string) => {
-    const { toast } = useToast()
-    toast({
-      title: "Error",
-      description: message,
-      variant: "destructive",
-    })
+    sonnerToast.error(message);
   },
   success: (message: string) => {
-    const { toast } = useToast()
-    toast({
-      title: "Success",
-      description: message,
-    })
+    sonnerToast.success(message);
   },
   info: (message: string) => {
-    const { toast } = useToast()
-    toast({
-      description: message,
-    })
+    sonnerToast.info(message);
   }
 }
+
+export { useToast, toast }

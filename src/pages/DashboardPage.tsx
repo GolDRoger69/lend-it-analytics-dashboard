@@ -121,7 +121,7 @@ export function DashboardPage() {
                           { key: "next_cleaning_due", label: "Next Due" },
                           { key: "status", label: "Status" },
                         ]}
-                        data={maintenanceRecords.filter(r => r.status === 'pending').slice(0, 3)}
+                        data={maintenanceRecords.filter(r => r?.status === 'pending').slice(0, 3)}
                         isLoading={isLoadingMaintenance}
                       />
                     </div>
@@ -154,7 +154,18 @@ export function DashboardPage() {
                           </div>
                         ) : (
                           userProducts.slice(0, 3).map(product => (
-                            <ProductCard key={product.product_id} product={product} />
+                            <ProductCard 
+                              key={product.product_id} 
+                              product={{
+                                product_id: product.product_id,
+                                name: product.name,
+                                category: product.category,
+                                owner_id: product.owner_id,
+                                rental_price: product.rental_price,
+                                available_quantity: product.available_quantity,
+                                sub_category: product.sub_category
+                              }} 
+                            />
                           ))
                         )}
                       </div>
@@ -186,7 +197,18 @@ export function DashboardPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {userProducts.map(product => (
-                  <ProductCard key={product.product_id} product={product} />
+                  <ProductCard 
+                    key={product.product_id} 
+                    product={{
+                      product_id: product.product_id,
+                      name: product.name,
+                      category: product.category,
+                      owner_id: product.owner_id,
+                      rental_price: product.rental_price,
+                      available_quantity: product.available_quantity,
+                      sub_category: product.sub_category
+                    }} 
+                  />
                 ))}
               </div>
             )}
