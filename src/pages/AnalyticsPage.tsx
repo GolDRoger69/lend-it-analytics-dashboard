@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -19,7 +18,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { Dollar, Package, ShoppingBag, Star, Users } from "lucide-react";
+import { DollarSign, Package, ShoppingBag, Star, Users } from "lucide-react";
 
 export function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -29,7 +28,7 @@ export function AnalyticsPage() {
   const totalRentals = mockApi.findRentalPairs().length;
   const totalUsers = mockApi.usersWithRoleLabels().length;
   const totalRevenue = mockApi.findRentalPairs().reduce((acc, rental) => {
-    const rentalObj = mockApi.mockApi.findRentalPairs().find(r => r.rental_id === rental.rental_id);
+    const rentalObj = mockApi.findRentalPairs().find(r => r.rental_id === rental.rental_id);
     return acc + (rentalObj?.total_cost || 0);
   }, 0);
   
@@ -85,7 +84,7 @@ export function AnalyticsPage() {
             <StatCard
               title="Total Revenue"
               value={`$${totalRevenue.toFixed(2)}`}
-              icon={<Dollar />}
+              icon={<DollarSign />}
               trend={{ value: 15, direction: "up" }}
             />
           </div>
