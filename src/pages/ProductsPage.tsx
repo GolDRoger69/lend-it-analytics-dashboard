@@ -1,6 +1,4 @@
-
 import { useState } from "react";
-import { mockApi, Product } from "@/lib/mock-data";
 import { ProductCard } from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,13 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { FilterIcon, SearchIcon, X } from "lucide-react";
+import { FilterIcon, SearchIcon, X, Loader2 } from "lucide-react";
+import { useProducts, useProductCategories } from "@/integrations/supabase/hooks";
 
-type CategoryType = 'all' | 'mens' | 'womens' | 'accessories';
+type CategoryType = 'all' | string;
 type SortOption = 'price-asc' | 'price-desc' | 'rating-desc';
 
 export function ProductsPage() {
-  const allProducts = mockApi.getAllProducts();
+  const { data: products = [], isLoading: productsLoading } = useProducts();
+  const { data: categoryData = { categories: [], subcategories: [] }, isLoading: categoriesLoading } = useProductCategories();
   
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>("all");
@@ -23,10 +23,7 @@ export function ProductsPage() {
   const [sortOption, setSortOption] = useState<SortOption>("price-asc");
   const [showFilters, setShowFilters] = useState(false);
   
-  // Derived unique subcategories from the products
-  const subcategories = Array.from(
-    new Set(allProducts.map(p => p.sub_category).filter(Boolean))
-  ) as string[];
+  const subcategories = categoryData.subcategories;
   
   const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
 
@@ -46,8 +43,7 @@ export function ProductsPage() {
     setSortOption("price-asc");
   };
 
-  // Filter products
-  const filteredProducts = allProducts
+  const filteredProducts = products
     .filter(product => 
       (searchQuery === "" || 
         product.name.toLowerCase().includes(searchQuery.toLowerCase())) &&
@@ -58,19 +54,28 @@ export function ProductsPage() {
       product.rental_price <= priceRange[1]
     );
   
-  // Sort products
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (sortOption === "price-asc") {
       return a.rental_price - b.rental_price;
     } else if (sortOption === "price-desc") {
       return b.rental_price - a.rental_price;
     } else {
-      // Assuming we have rating information
-      const aRating = 4; // Mock rating
-      const bRating = 3; // Mock rating
-      return bRating - aRating;
+      return a.rental_price - b.rental_price;
     }
   });
+
+  const isLoading = productsLoading || categoriesLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-lg text-muted-foreground">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -101,7 +106,6 @@ export function ProductsPage() {
       </div>
       
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Filters sidebar */}
         <aside className={`${showFilters ? 'block' : 'hidden'} md:block lg:w-64 space-y-6 flex-shrink-0`}>
           <Card>
             <CardContent className="pt-6">
@@ -118,26 +122,24 @@ export function ProductsPage() {
               </div>
               
               <div className="space-y-6">
-                {/* Category filter */}
                 <div>
                   <Label htmlFor="category">Category</Label>
                   <Select
                     value={selectedCategory}
-                    onValueChange={(value) => setSelectedCategory(value as CategoryType)}
+                    onValueChange={(value) => setSelectedCategory(value)}
                   >
                     <SelectTrigger id="category" className="w-full mt-1">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="mens">Men's</SelectItem>
-                      <SelectItem value="womens">Women's</SelectItem>
-                      <SelectItem value="accessories">Accessories</SelectItem>
+                      {categoryData.categories.map((category) => (
+                        <SelectItem key={category} value={category}>{category}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 
-                {/* Subcategory filter */}
                 <div>
                   <Label className="block mb-2">Sub-category</Label>
                   <div className="flex flex-wrap gap-2">
@@ -154,7 +156,6 @@ export function ProductsPage() {
                   </div>
                 </div>
                 
-                {/* Price range filter */}
                 <div>
                   <div className="flex justify-between mb-2">
                     <Label>Price Range</Label>
@@ -177,7 +178,6 @@ export function ProductsPage() {
           </Card>
         </aside>
         
-        {/* Products grid */}
         <div className="flex-1">
           <div className="flex justify-between items-center mb-6">
             <p className="text-sm text-muted-foreground">
@@ -199,7 +199,6 @@ export function ProductsPage() {
             </Select>
           </div>
           
-          {/* Active filters */}
           {(selectedCategory !== "all" || 
             selectedSubcategories.length > 0 || 
             searchQuery || 

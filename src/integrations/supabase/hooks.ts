@@ -48,6 +48,57 @@ export const useProducts = () => {
   });
 };
 
+// Product categories and subcategories
+export const useProductCategories = () => {
+  return useQuery({
+    queryKey: ['product-categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('category, sub_category')
+        .order('category', { ascending: true });
+      
+      if (error) {
+        toast.error(`Error fetching product categories: ${error.message}`);
+        throw error;
+      }
+      
+      // Extract unique categories and subcategories
+      const categories = Array.from(new Set(data.map(item => item.category)));
+      const subcategories = Array.from(new Set(data.map(item => item.sub_category).filter(Boolean)));
+      
+      return { categories, subcategories };
+    }
+  });
+};
+
+// Get product reviews
+export const useProductReviews = () => {
+  return useQuery({
+    queryKey: ['product-reviews'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select(`
+          *,
+          users(name),
+          products(name)
+        `);
+      
+      if (error) {
+        toast.error(`Error fetching reviews: ${error.message}`);
+        throw error;
+      }
+      
+      return data.map(review => ({
+        ...review,
+        user_name: review.users?.name,
+        product_name: review.products?.name
+      }));
+    }
+  });
+};
+
 // Rentals with joined data
 export const useRentalsWithDetails = () => {
   return useQuery({
