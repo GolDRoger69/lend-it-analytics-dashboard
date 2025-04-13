@@ -186,7 +186,10 @@ export function DataQueriesPage() {
         const productId = rental.product_id;
         const startDate = new Date(rental.rental_start);
         const endDate = new Date(rental.rental_end);
-        const durationDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        
+        // Calculate difference in days
+        const timeDiff = endDate.getTime() - startDate.getTime();
+        const durationDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
         
         if (!productDurationMap[productId]) {
           productDurationMap[productId] = { total: 0, count: 0 };

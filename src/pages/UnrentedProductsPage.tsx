@@ -15,7 +15,9 @@ export function UnrentedProductsPage() {
           product_id,
           name,
           category,
-          rental_price
+          rental_price,
+          sub_category,
+          available_quantity
         `)
         .not('product_id', 'in', supabase
           .from('rentals')
@@ -43,6 +45,8 @@ export function UnrentedProductsPage() {
           { key: 'product_id', label: 'ID' },
           { key: 'name', label: 'Product Name' },
           { key: 'category', label: 'Category' },
+          { key: 'sub_category', label: 'Sub-category' },
+          { key: 'available_quantity', label: 'Available Quantity' },
           { key: 'rental_price', label: 'Price' }
         ]}
         data={unrentedProducts}

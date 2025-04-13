@@ -27,15 +27,17 @@ interface DataTableProps {
   data: Record<string, any>[] | null;
   isLoading?: boolean;
   error?: string | null;
+  renderCell?: (column: string, value: any, item: Record<string, any>) => React.ReactNode;
 }
 
 export function DataTable({ 
   title,
   description,
   columns, 
-  data, 
+  data = [], 
   isLoading = false,
-  error = null
+  error = null,
+  renderCell
 }: DataTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -90,19 +92,23 @@ export function DataTable({
                     <TableRow key={i}>
                       {columns.map((column) => (
                         <TableCell key={`${i}-${column.key}`}>
-                          {/* Handle different data types */}
-                          {typeof row[column.key] === 'boolean' 
-                            ? row[column.key] ? 'Yes' : 'No'
-                            : typeof row[column.key] === 'number' && 
-                              (column.key.includes('price') || 
-                               column.key.includes('cost') || 
-                               column.key.includes('amount') || 
-                               column.key.includes('revenue') || 
-                               column.key.includes('spent'))
-                              ? `$${row[column.key].toFixed(2)}`
-                              : row[column.key] === null || row[column.key] === undefined
-                                ? '—' 
-                                : String(row[column.key])}
+                          {renderCell ? (
+                            renderCell(column.key, row[column.key], row)
+                          ) : (
+                            /* Handle different data types */
+                            typeof row[column.key] === 'boolean' 
+                              ? row[column.key] ? 'Yes' : 'No'
+                              : typeof row[column.key] === 'number' && 
+                                (column.key.includes('price') || 
+                                column.key.includes('cost') || 
+                                column.key.includes('amount') || 
+                                column.key.includes('revenue') || 
+                                column.key.includes('spent'))
+                                ? `$${row[column.key].toFixed(2)}`
+                                : row[column.key] === null || row[column.key] === undefined
+                                  ? '—' 
+                                  : String(row[column.key])
+                          )}
                         </TableCell>
                       ))}
                     </TableRow>

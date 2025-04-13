@@ -6,7 +6,7 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { NotFound } from "./pages/NotFound";
+import NotFound from "./pages/NotFound";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { MaintenancePage } from "./pages/MaintenancePage";
 import { RentersPage } from "./pages/RentersPage";
