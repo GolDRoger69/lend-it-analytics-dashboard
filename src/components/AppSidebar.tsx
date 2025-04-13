@@ -10,7 +10,10 @@ import {
   ListChecks,
   Settings, 
   LogOut,
-  WrenchIcon
+  WrenchIcon,
+  UsersIcon,
+  BarChart3Icon,
+  PieChartIcon
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -123,6 +126,27 @@ export function AppSidebar({
             label="Maintenance"
             href="/maintenance"
             isActive={isActive("/maintenance")}
+          />
+
+          <SidebarItem 
+            icon={<UsersIcon className="h-5 w-5" />}
+            label="Renters"
+            href="/renters"
+            isActive={isActive("/renters")}
+          />
+
+          <SidebarItem 
+            icon={<BarChart3Icon className="h-5 w-5" />}
+            label="Revenue Reports"
+            href="/revenue-reports"
+            isActive={isActive("/revenue-reports")}
+          />
+
+          <SidebarItem 
+            icon={<PieChartIcon className="h-5 w-5" />}
+            label="Product Analytics"
+            href="/product-analytics"
+            isActive={isActive("/product-analytics")}
           />
         </nav>
       </div>

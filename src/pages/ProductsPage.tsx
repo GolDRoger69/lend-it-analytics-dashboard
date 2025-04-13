@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
@@ -8,13 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { FilterIcon, SearchIcon, X, Loader2 } from "lucide-react";
-import { useProducts, useProductCategories } from "@/integrations/supabase/hooks";
+import { useProductCategories } from "@/integrations/supabase/hooks";
+import { useProductsWithDetails } from "@/hooks/useProductsWithDetails";
 
 type CategoryType = 'all' | string;
 type SortOption = 'price-asc' | 'price-desc' | 'rating-desc';
 
 export function ProductsPage() {
-  const { data: products = [], isLoading: productsLoading } = useProducts();
+  const { data: products = [], isLoading: productsLoading } = useProductsWithDetails();
   const { data: categoryData = { categories: [], subcategories: [] }, isLoading: categoriesLoading } = useProductCategories();
   
   const [searchQuery, setSearchQuery] = useState("");
@@ -59,6 +61,10 @@ export function ProductsPage() {
       return a.rental_price - b.rental_price;
     } else if (sortOption === "price-desc") {
       return b.rental_price - a.rental_price;
+    } else if (sortOption === "rating-desc") {
+      const ratingA = a.avg_rating || 0;
+      const ratingB = b.avg_rating || 0;
+      return ratingB - ratingA;
     } else {
       return a.rental_price - b.rental_price;
     }

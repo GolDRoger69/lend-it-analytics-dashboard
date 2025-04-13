@@ -4,18 +4,10 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StarIcon } from "lucide-react";
+import { ProductWithDetails } from "@/hooks/useProductsWithDetails";
 
 export interface ProductCardProps {
-  product: {
-    product_id: number;
-    name: string;
-    category: string;
-    sub_category?: string;
-    rental_price: number;
-    image_url?: string;
-    owner_name?: string;
-    avg_rating?: number;
-  };
+  product: ProductWithDetails;
 }
 
 export function ProductCard({ product }: ProductCardProps) {
@@ -48,13 +40,21 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
         )}
         
-        {product.avg_rating && (
+        {product.available_quantity !== undefined && (
+          <div className="text-sm mt-2">
+            <span className={product.available_quantity > 0 ? "text-green-600" : "text-red-600"}>
+              {product.available_quantity > 0 ? `${product.available_quantity} available` : "Out of stock"}
+            </span>
+          </div>
+        )}
+        
+        {product.avg_rating !== undefined && (
           <div className="flex items-center mt-2">
             {[...Array(5)].map((_, i) => (
               <StarIcon
                 key={i}
                 className={`h-4 w-4 ${
-                  i < Math.floor(product.avg_rating)
+                  i < Math.floor(product.avg_rating!)
                     ? "text-yellow-400 fill-yellow-400"
                     : "text-gray-300"
                 }`}
