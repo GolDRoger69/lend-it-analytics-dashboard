@@ -1,54 +1,44 @@
 
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Layout } from "@/components/Layout";
-import Index from "@/pages/Index";
-import { HomePage } from "@/pages/HomePage";
-import { ProductsPage } from "@/pages/ProductsPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { AnalyticsPage } from "@/pages/AnalyticsPage";
-import { MaintenancePage } from "@/pages/MaintenancePage";
-import { RegisterPage } from "@/pages/RegisterPage";
-import { LoginPage } from "@/pages/LoginPage";
-import NotFound from "@/pages/NotFound";
-import { AuthProvider } from "@/lib/auth-context";
-import { RentersPage } from "@/pages/RentersPage";
-import { RevenueReportsPage } from "@/pages/RevenueReportsPage";
-import { ProductAnalyticsPage } from "@/pages/ProductAnalyticsPage";
-import { RentalPairsPage } from "@/pages/RentalPairsPage";
-import { ProductOwnersPage } from "@/pages/ProductOwnersPage";
-import { UnrentedProductsPage } from "@/pages/UnrentedProductsPage";
-
-// Create a client
-const queryClient = new QueryClient();
+import { Routes, Route, Navigate } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { HomePage } from "./pages/HomePage";
+import { ProductsPage } from "./pages/ProductsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { RegisterPage } from "./pages/RegisterPage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { NotFound } from "./pages/NotFound";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { MaintenancePage } from "./pages/MaintenancePage";
+import { RentersPage } from "./pages/RentersPage";
+import { RevenueReportsPage } from "./pages/RevenueReportsPage";
+import { ProductAnalyticsPage } from "./pages/ProductAnalyticsPage";
+import { RentalPairsPage } from "./pages/RentalPairsPage";
+import { ProductOwnersPage } from "./pages/ProductOwnersPage";
+import { UnrentedProductsPage } from "./pages/UnrentedProductsPage";
+import { DataQueriesPage } from "./pages/DataQueriesPage";
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Index />} />
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/maintenance" element={<MaintenancePage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/renters" element={<RentersPage />} />
-              <Route path="/revenue-reports" element={<RevenueReportsPage />} />
-              <Route path="/product-analytics" element={<ProductAnalyticsPage />} />
-              <Route path="/rental-pairs" element={<RentalPairsPage />} />
-              <Route path="/product-owners" element={<ProductOwnersPage />} />
-              <Route path="/unrented-products" element={<UnrentedProductsPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Navigate to="/home" replace />} />
+        <Route path="home" element={<HomePage />} />
+        <Route path="products" element={<ProductsPage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="maintenance" element={<MaintenancePage />} />
+        <Route path="renters" element={<RentersPage />} />
+        <Route path="revenue-reports" element={<RevenueReportsPage />} />
+        <Route path="product-analytics" element={<ProductAnalyticsPage />} />
+        <Route path="rental-pairs" element={<RentalPairsPage />} />
+        <Route path="product-owners" element={<ProductOwnersPage />} />
+        <Route path="unrented-products" element={<UnrentedProductsPage />} />
+        <Route path="data-queries" element={<DataQueriesPage />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
   );
 }
 

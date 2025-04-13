@@ -10,7 +10,17 @@ export function UnrentedProductsPage() {
     queryFn: async () => {
       // This query uses a left join to find products that haven't been rented
       const { data, error } = await supabase
-        .rpc('get_unrented_products');
+        .from('products')
+        .select(`
+          product_id,
+          name,
+          category,
+          rental_price
+        `)
+        .not('product_id', 'in', supabase
+          .from('rentals')
+          .select('product_id')
+        );
 
       if (error) {
         toast.error(`Error fetching unrented products: ${error.message}`);

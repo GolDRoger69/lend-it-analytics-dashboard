@@ -13,7 +13,8 @@ import {
   WrenchIcon,
   UsersIcon,
   BarChart3Icon,
-  PieChartIcon
+  PieChartIcon,
+  Database
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 
@@ -147,6 +148,13 @@ export function AppSidebar({
             label="Product Analytics"
             href="/product-analytics"
             isActive={isActive("/product-analytics")}
+          />
+          
+          <SidebarItem 
+            icon={<Database className="h-5 w-5" />}
+            label="Data Queries"
+            href="/data-queries"
+            isActive={isActive("/data-queries")}
           />
         </nav>
       </div>
