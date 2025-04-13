@@ -1,13 +1,17 @@
 
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { mockApi } from "@/lib/mock-data";
+import { useProductsWithDetails } from "@/hooks/useProductsWithDetails";
 import { ProductCard } from "@/components/ProductCard";
 import { ArrowRight, BarChart3, Search, ShoppingCart } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export function HomePage() {
-  // Get featured products (just using some of the products for demo)
-  const featuredProducts = mockApi.getAllProducts().slice(0, 4);
+  // Get featured products using the hook
+  const { data: products = [], isLoading } = useProductsWithDetails();
+  
+  // Select just 4 products for the featured section
+  const featuredProducts = products.slice(0, 4);
   
   return (
     <div className="space-y-12 pb-8">
@@ -83,11 +87,17 @@ export function HomePage() {
           </Link>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {featuredProducts.map(product => (
-            <ProductCard key={product.product_id} product={product} />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex justify-center p-16">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featuredProducts.map(product => (
+              <ProductCard key={product.product_id} product={product} />
+            ))}
+          </div>
+        )}
       </section>
       
       {/* CTA */}

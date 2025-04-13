@@ -4,7 +4,7 @@ import { DataTable } from "@/components/DataTable";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart } from "@/components/ui/chart";
+import { Bar } from "@/components/ui/chart";
 
 export function RevenueReportsPage() {
   // Top 5 products by revenue
@@ -127,7 +127,7 @@ export function RevenueReportsPage() {
             {topProductsLoading ? (
               <div className="flex justify-center p-8">Loading chart data...</div>
             ) : (
-              <BarChart 
+              <Bar 
                 data={chartData} 
                 index="name"
                 categories={['value']}

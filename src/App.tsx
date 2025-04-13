@@ -15,6 +15,9 @@ import { AuthProvider } from "@/lib/auth-context";
 import { RentersPage } from "@/pages/RentersPage";
 import { RevenueReportsPage } from "@/pages/RevenueReportsPage";
 import { ProductAnalyticsPage } from "@/pages/ProductAnalyticsPage";
+import { RentalPairsPage } from "@/pages/RentalPairsPage";
+import { ProductOwnersPage } from "@/pages/ProductOwnersPage";
+import { UnrentedProductsPage } from "@/pages/UnrentedProductsPage";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -37,6 +40,9 @@ function App() {
               <Route path="/renters" element={<RentersPage />} />
               <Route path="/revenue-reports" element={<RevenueReportsPage />} />
               <Route path="/product-analytics" element={<ProductAnalyticsPage />} />
+              <Route path="/rental-pairs" element={<RentalPairsPage />} />
+              <Route path="/product-owners" element={<ProductOwnersPage />} />
+              <Route path="/unrented-products" element={<UnrentedProductsPage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
