@@ -4,7 +4,8 @@ import { DataTable } from "@/components/DataTable";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bar } from "@/components/ui/chart";
+import { ChartContainer, ChartLegend, ChartTooltip } from "@/components/ui/chart";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 export function RevenueReportsPage() {
   // Top 5 products by revenue
@@ -127,17 +128,25 @@ export function RevenueReportsPage() {
             {topProductsLoading ? (
               <div className="flex justify-center p-8">Loading chart data...</div>
             ) : (
-              <Bar 
-                data={chartData} 
-                index="name"
-                categories={['value']}
-                colors={['blue']}
-                valueFormatter={(value) => `$${value}`}
-                height={300}
-                showLegend={false}
-                showXAxis={true}
-                showYAxis={true}
-              />
+              <div className="h-[300px] w-full">
+                <BarChart
+                  width={500}
+                  height={300}
+                  data={chartData}
+                  margin={{
+                    top: 5,
+                    right: 30,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => `$${value}`} />
+                  <Bar dataKey="value" fill="#8884d8" />
+                </BarChart>
+              </div>
             )}
           </CardContent>
         </Card>

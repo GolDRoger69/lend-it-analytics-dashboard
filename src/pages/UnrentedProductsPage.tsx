@@ -37,7 +37,7 @@ export function UnrentedProductsPage() {
         ]}
         data={unrentedProducts}
         isLoading={isLoading}
-        error={error?.message}
+        error={error instanceof Error ? error.message : 'An error occurred'}
       />
     </div>
   );

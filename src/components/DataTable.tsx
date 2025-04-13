@@ -64,7 +64,12 @@ export function DataTable({
                         {/* Handle different data types */}
                         {typeof row[column.key] === 'boolean' 
                           ? row[column.key] ? 'Yes' : 'No'
-                          : typeof row[column.key] === 'number' && column.key.includes('price') || column.key.includes('cost') || column.key.includes('amount') || column.key.includes('revenue')
+                          : typeof row[column.key] === 'number' && 
+                            (column.key.includes('price') || 
+                             column.key.includes('cost') || 
+                             column.key.includes('amount') || 
+                             column.key.includes('revenue') || 
+                             column.key.includes('spent'))
                             ? `$${row[column.key].toFixed(2)}`
                             : row[column.key] === null || row[column.key] === undefined
                               ? '—' 

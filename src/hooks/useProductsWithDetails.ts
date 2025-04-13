@@ -7,7 +7,7 @@ export interface ProductWithDetails {
   product_id: number;
   name: string;
   category: string;
-  sub_category?: string; // Changed to optional
+  sub_category?: string; // Made optional with ? mark
   rental_price: number;
   image_url?: string;
   owner_name?: string;
