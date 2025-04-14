@@ -633,13 +633,13 @@ export function DataQueriesPage() {
           <TabsTrigger value="avg-rental-duration">Avg Rental Duration</TabsTrigger>
           <TabsTrigger value="top-revenue">Top Revenue</TabsTrigger>
           <TabsTrigger value="above-avg-price">Above Avg Price</TabsTrigger>
-          <TabsTrigger value="sellers-admins">Sellers & Admins</TabsTrigger>
+          <TabsTrigger value="sellers-admins">Sellers &amp; Admins</TabsTrigger>
           <TabsTrigger value="role-labels">Role Labels</TabsTrigger>
           <TabsTrigger value="affordable-tuxedos">Affordable Tuxedos</TabsTrigger>
           <TabsTrigger value="quality-womens">Quality Women's</TabsTrigger>
           <TabsTrigger value="clean-accessories">Clean Accessories</TabsTrigger>
           <TabsTrigger value="rated-products">Rated Products</TabsTrigger>
-          <TabsTrigger value="buyers-sellers">Buyers & Sellers</TabsTrigger>
+          <TabsTrigger value="buyers-sellers">Buyers &amp; Sellers</TabsTrigger>
         </TabsList>
         
         <TabsContent value="renters" className="mt-6">
@@ -842,7 +842,7 @@ export function DataQueriesPage() {
             </CardHeader>
             <CardContent>
               <DataTable
-                title="Sellers & Admin Emails"
+                title="Sellers &amp; Admin Emails"
                 description="Email addresses of all sellers and administrators"
                 columns={[
                   { key: 'email', label: 'Email' },
@@ -903,7 +903,7 @@ export function DataQueriesPage() {
         <TabsContent value="quality-womens" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Women's Products with High Ratings & Low Price</CardTitle>
+              <CardTitle>Women's Products with High Ratings &amp; Low Price</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
@@ -926,7 +926,7 @@ export function DataQueriesPage() {
         <TabsContent value="clean-accessories" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Accessories (Quantity > 3 & Cleaned Last Month)</CardTitle>
+              <CardTitle>Accessories (Quantity &gt; 3 &amp; Cleaned Last Month)</CardTitle>
             </CardHeader>
             <CardContent>
               <DataTable
