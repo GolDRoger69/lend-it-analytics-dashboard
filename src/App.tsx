@@ -16,6 +16,7 @@ import { RentalPairsPage } from "./pages/RentalPairsPage";
 import { ProductOwnersPage } from "./pages/ProductOwnersPage";
 import { UnrentedProductsPage } from "./pages/UnrentedProductsPage";
 import { DataQueriesPage } from "./pages/DataQueriesPage";
+import { ProductDetailsPage } from "./pages/ProductDetailsPage";
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
         <Route index element={<Navigate to="/home" replace />} />
         <Route path="home" element={<HomePage />} />
         <Route path="products" element={<ProductsPage />} />
+        <Route path="products/:id" element={<ProductDetailsPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />

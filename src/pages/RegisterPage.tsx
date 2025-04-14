@@ -8,10 +8,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/integrations/supabase/client";
 
 export function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("renter");
@@ -22,7 +24,7 @@ export function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !phone || !password || !confirmPassword) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -35,17 +37,35 @@ export function RegisterPage() {
     try {
       setIsLoading(true);
       
-      // In a real app, this would register the user with the backend
-      // and then log them in
-      toast.success("Account created successfully");
+      // Insert the new user into the users table
+      const { data, error } = await supabase
+        .from('users')
+        .insert([
+          { name, email, phone, password, role }
+        ])
+        .select();
       
-      // Simulate login
-      await login(email, password);
+      if (error) {
+        console.error("Registration error:", error);
+        toast.error("Registration failed: " + error.message);
+        return;
+      }
       
-      navigate("/dashboard");
+      if (data && data.length > 0) {
+        toast.success("Account created successfully");
+        
+        // Login the user
+        const success = await login(email, password);
+        
+        if (success) {
+          navigate("/dashboard");
+        } else {
+          navigate("/login");
+        }
+      }
     } catch (error) {
-      toast.error("An error occurred during registration");
-      console.error(error);
+      console.error("Registration error:", error);
+      toast.error("An unexpected error occurred during registration");
     } finally {
       setIsLoading(false);
     }
@@ -81,6 +101,17 @@ export function RegisterPage() {
                 placeholder="example@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                placeholder="+1234567890"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 disabled={isLoading}
                 required
               />

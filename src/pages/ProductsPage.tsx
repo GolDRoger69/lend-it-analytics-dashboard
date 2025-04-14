@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { FilterIcon, SearchIcon, X, Loader2 } from "lucide-react";
+import { FilterIcon, SearchIcon, X, Loader2, Star } from "lucide-react";
 import { useProductCategories } from "@/integrations/supabase/hooks";
 import { useProductsWithDetails } from "@/hooks/useProductsWithDetails";
 
@@ -22,6 +22,7 @@ export function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>("all");
   const [priceRange, setPriceRange] = useState([0, 3000]);
+  const [ratingRange, setRatingRange] = useState([0, 5]);
   const [sortOption, setSortOption] = useState<SortOption>("price-asc");
   const [showFilters, setShowFilters] = useState(false);
   
@@ -41,6 +42,7 @@ export function ProductsPage() {
     setSearchQuery("");
     setSelectedCategory("all");
     setPriceRange([0, 3000]);
+    setRatingRange([0, 5]);
     setSelectedSubcategories([]);
     setSortOption("price-asc");
   };
@@ -53,7 +55,9 @@ export function ProductsPage() {
       (selectedSubcategories.length === 0 || 
         (product.sub_category && selectedSubcategories.includes(product.sub_category))) &&
       product.rental_price >= priceRange[0] &&
-      product.rental_price <= priceRange[1]
+      product.rental_price <= priceRange[1] &&
+      ((product.avg_rating || 0) >= ratingRange[0] && 
+       (product.avg_rating || 0) <= ratingRange[1])
     );
   
   const sortedProducts = [...filteredProducts].sort((a, b) => {
@@ -179,6 +183,34 @@ export function ProductsPage() {
                     className="my-4"
                   />
                 </div>
+                
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <Label>Rating</Label>
+                    <span className="text-sm text-muted-foreground">
+                      {ratingRange[0]} - {ratingRange[1]} stars
+                    </span>
+                  </div>
+                  <Slider
+                    defaultValue={[0, 5]}
+                    min={0}
+                    max={5}
+                    step={0.5}
+                    value={ratingRange}
+                    onValueChange={setRatingRange}
+                    className="my-4"
+                  />
+                  <div className="flex justify-between">
+                    <div className="flex items-center">
+                      <Star className="h-3 w-3 text-gray-300" />
+                      <span className="text-xs ml-1">0</span>
+                    </div>
+                    <div className="flex items-center">
+                      <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                      <span className="text-xs ml-1">5</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -209,7 +241,9 @@ export function ProductsPage() {
             selectedSubcategories.length > 0 || 
             searchQuery || 
             priceRange[0] > 0 || 
-            priceRange[1] < 3000) && (
+            priceRange[1] < 3000 ||
+            ratingRange[0] > 0 ||
+            ratingRange[1] < 5) && (
             <div className="flex flex-wrap gap-2 mb-4">
               {selectedCategory !== "all" && (
                 <Badge variant="secondary" className="flex items-center gap-1">
@@ -247,6 +281,16 @@ export function ProductsPage() {
                   <X 
                     className="h-3 w-3 cursor-pointer" 
                     onClick={() => setPriceRange([0, 3000])}
+                  />
+                </Badge>
+              )}
+              
+              {(ratingRange[0] > 0 || ratingRange[1] < 5) && (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  Rating: {ratingRange[0]} - {ratingRange[1]} stars
+                  <X 
+                    className="h-3 w-3 cursor-pointer" 
+                    onClick={() => setRatingRange([0, 5])}
                   />
                 </Badge>
               )}

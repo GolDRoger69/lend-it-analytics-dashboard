@@ -7,7 +7,7 @@ export interface ProductWithDetails {
   product_id: number;
   name: string;
   category: string;
-  sub_category?: string; // Made optional with ? mark
+  sub_category?: string;
   rental_price: number;
   image_url?: string;
   owner_name?: string;
@@ -56,7 +56,7 @@ export function useProductsWithDetails() {
         acc[productId].sum += review.rating;
         acc[productId].count += 1;
         return acc;
-      }, {});
+      }, {} as Record<number, { sum: number, count: number }>);
       
       // Format the products with all required details
       const productsWithDetails: ProductWithDetails[] = products.map(product => {

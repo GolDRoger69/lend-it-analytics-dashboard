@@ -1,18 +1,28 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { DataTable } from "@/components/DataTable";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
+import { DataTable } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+
+// Fixed arithmetic operation issue by using proper date calculation
+const calculateDateDifference = (start: string, end: string) => {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const differenceInTime = endDate.getTime() - startDate.getTime();
+  const differenceInDays = differenceInTime / (1000 * 3600 * 24);
+  return Math.round(differenceInDays);
+};
 
 export function DataQueriesPage() {
   const [activeTab, setActiveTab] = useState("renters");
 
-  // 1. List of Renters
-  const { data: renters = [], isLoading: rentersLoading, error: rentersError } = useQuery({
-    queryKey: ['renters'],
+  // Query 1: List of Renters
+  const { data: renters = [], isLoading: rentersLoading } = useQuery({
+    queryKey: ['data-queries', 'renters'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
@@ -20,17 +30,17 @@ export function DataQueriesPage() {
         .eq('role', 'renter');
         
       if (error) {
-        toast.error(`Error fetching renters: ${error.message}`);
+        toast.error('Error fetching renters: ' + error.message);
         throw error;
       }
-        
+      
       return data || [];
     }
   });
-  
-  // 2. Rental Info (Renter, Product, Owner)
-  const { data: rentalPairs = [], isLoading: rentalPairsLoading, error: rentalPairsError } = useQuery({
-    queryKey: ['rental-pairs'],
+
+  // Query 2: Rental Pairs (Renter, Product, Owner)
+  const { data: rentalPairs = [], isLoading: rentalPairsLoading } = useQuery({
+    queryKey: ['data-queries', 'rental-pairs'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('rentals')
@@ -41,305 +51,324 @@ export function DataQueriesPage() {
         `);
         
       if (error) {
-        toast.error(`Error fetching rental pairs: ${error.message}`);
+        toast.error('Error fetching rental pairs: ' + error.message);
         throw error;
       }
       
-      return data.map(rental => ({
-        rental_id: rental.rental_id,
-        renter_name: rental.users?.name || 'Unknown',
-        product_name: rental.products?.name || 'Unknown',
-        owner_name: rental.products?.users?.name || 'Unknown'
+      return data.map(item => ({
+        rental_id: item.rental_id,
+        renter_name: item.users?.name || 'Unknown',
+        product_name: item.products?.name || 'Unknown',
+        owner_name: item.products?.users?.name || 'Unknown'
       })) || [];
     }
   });
-  
-  // 3. Products Count by Owner
-  const { data: productsByOwner = [], isLoading: productsByOwnerLoading, error: productsByOwnerError } = useQuery({
-    queryKey: ['products-by-owner'],
+
+  // Query 3: Products Per Owner
+  const { data: productsPerOwner = [], isLoading: productsPerOwnerLoading } = useQuery({
+    queryKey: ['data-queries', 'products-per-owner'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('users')
-        .select(`
-          name,
-          products(product_id)
-        `)
-        .eq('role', 'owner');
+        .from('products')
+        .select('owner_id, users!products_owner_id_fkey(name)');
         
       if (error) {
-        toast.error(`Error fetching products by owner: ${error.message}`);
+        toast.error('Error fetching products per owner: ' + error.message);
         throw error;
       }
       
-      return data.map(user => ({
-        owner_name: user.name,
-        total_products: user.products?.length || 0
-      })) || [];
-    }
-  });
-  
-  // 4. Owners with More Than 2 Products
-  const { data: ownersWithManyProducts = [], isLoading: ownersWithManyProductsLoading, error: ownersWithManyProductsError } = useQuery({
-    queryKey: ['owners-with-many-products'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select(`
-          name,
-          products(product_id)
-        `)
-        .eq('role', 'owner');
+      // Group by owner and count
+      const ownerMap = new Map();
+      data.forEach(item => {
+        const ownerId = item.owner_id;
+        const ownerName = item.users?.name || 'Unknown';
         
-      if (error) {
-        toast.error(`Error fetching owners with many products: ${error.message}`);
-        throw error;
-      }
+        if (!ownerMap.has(ownerId)) {
+          ownerMap.set(ownerId, { owner_name: ownerName, total_products: 0 });
+        }
+        
+        ownerMap.get(ownerId).total_products++;
+      });
       
-      return data
-        .filter(user => (user.products?.length || 0) > 2)
-        .map(user => ({
-          owner_name: user.name,
-          total_products: user.products?.length || 0
-        })) || [];
+      return Array.from(ownerMap.values());
     }
   });
-  
-  // 5. Buyers Who Spent More Than Average
-  const { data: highSpendingBuyers = [], isLoading: highSpendingBuyersLoading, error: highSpendingBuyersError } = useQuery({
-    queryKey: ['high-spending-buyers'],
+
+  // Query 4: Owners With More Than 2 Products
+  const { data: ownersWithMany = [], isLoading: ownersWithManyLoading } = useQuery({
+    queryKey: ['data-queries', 'owners-with-many'],
     queryFn: async () => {
-      const { data: rentalTotals, error: totalsError } = await supabase
+      // Filter from previous query result
+      return productsPerOwner.filter(owner => owner.total_products > 2);
+    },
+    enabled: !productsPerOwnerLoading && productsPerOwner.length > 0
+  });
+
+  // Query 5: Buyers With Above Average Spending
+  const { data: highSpenders = [], isLoading: highSpendersLoading } = useQuery({
+    queryKey: ['data-queries', 'high-spenders'],
+    queryFn: async () => {
+      const { data: rentals, error: rentalsError } = await supabase
         .from('rentals')
         .select('renter_id, total_cost');
         
-      if (totalsError) {
-        toast.error(`Error fetching rental totals: ${totalsError.message}`);
-        throw totalsError;
+      if (rentalsError) {
+        toast.error('Error fetching rentals: ' + rentalsError.message);
+        throw rentalsError;
       }
       
-      // Calculate average total cost
-      const totalSpent = rentalTotals.reduce((sum, rental) => sum + rental.total_cost, 0);
-      const avgSpent = totalSpent / rentalTotals.length;
+      // Calculate average spending
+      const totalSpent = rentals.reduce((sum, rental) => sum + (rental.total_cost || 0), 0);
+      const avgSpending = totalSpent / rentals.length;
       
-      // Group by renter_id and sum total_cost
-      const renterTotals = {};
-      rentalTotals.forEach(rental => {
-        if (!renterTotals[rental.renter_id]) {
-          renterTotals[rental.renter_id] = 0;
+      // Group by renter and calculate total spent
+      const renterSpending = new Map();
+      rentals.forEach(rental => {
+        const renterId = rental.renter_id;
+        const cost = rental.total_cost || 0;
+        
+        if (!renterSpending.has(renterId)) {
+          renterSpending.set(renterId, 0);
         }
-        renterTotals[rental.renter_id] += rental.total_cost;
+        
+        renterSpending.set(renterId, renterSpending.get(renterId) + cost);
       });
       
-      // Get renter_ids who spent more than average
-      const highSpenderIds = Object.keys(renterTotals)
-        .filter(renterId => renterTotals[renterId] > avgSpent)
-        .map(id => parseInt(id));
-      
-      if (highSpenderIds.length === 0) {
-        return [];
-      }
+      // Filter renters who spent more than average
+      const highSpenderIds = Array.from(renterSpending.entries())
+        .filter(([_, spent]) => spent > avgSpending)
+        .map(([id, _]) => id);
       
       // Get user details for high spenders
       const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('name, user_id')
+        .select('name')
         .in('user_id', highSpenderIds);
         
       if (usersError) {
-        toast.error(`Error fetching high spending users: ${usersError.message}`);
+        toast.error('Error fetching high spenders: ' + usersError.message);
         throw usersError;
       }
       
-      return users.map(user => ({
-        name: user.name,
-        user_id: user.user_id,
-        total_spent: renterTotals[user.user_id]
-      })) || [];
+      return users || [];
     }
   });
-  
-  // 6. Unrented Products - Already implemented in UnrentedProductsPage
-  
-  // 7. Average Renting Duration by Product
-  const { data: productDurations = [], isLoading: productDurationsLoading, error: productDurationsError } = useQuery({
-    queryKey: ['product-durations'],
+
+  // Query 6: Unrented Products
+  const { data: unrentedProducts = [], isLoading: unrentedProductsLoading } = useQuery({
+    queryKey: ['data-queries', 'unrented-products'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('rentals')
-        .select(`
-          product_id,
-          rental_start,
-          rental_end,
-          products(name)
-        `);
+        .from('products')
+        .select('product_id, name')
+        .not('product_id', 'in', supabase
+          .from('rentals')
+          .select('product_id')
+        );
         
       if (error) {
-        toast.error(`Error fetching rental durations: ${error.message}`);
+        toast.error('Error fetching unrented products: ' + error.message);
         throw error;
       }
       
-      // Group by product_id and calculate average duration
-      const productDurationMap = {};
-      const productNameMap = {};
-      
-      data.forEach(rental => {
-        const productId = rental.product_id;
-        const startDate = new Date(rental.rental_start);
-        const endDate = new Date(rental.rental_end);
-        
-        // Calculate difference in days
-        const timeDiff = endDate.getTime() - startDate.getTime();
-        const durationDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-        
-        if (!productDurationMap[productId]) {
-          productDurationMap[productId] = { total: 0, count: 0 };
-          productNameMap[productId] = rental.products?.name || `Product ${productId}`;
-        }
-        
-        productDurationMap[productId].total += durationDays;
-        productDurationMap[productId].count += 1;
-      });
-      
-      const result = Object.keys(productDurationMap).map(productId => {
-        const { total, count } = productDurationMap[productId];
-        const avgDuration = count > 0 ? total / count : 0;
-        
-        return {
-          product_id: parseInt(productId),
-          product_name: productNameMap[productId],
-          avg_duration: Math.round(avgDuration * 10) / 10 // Round to 1 decimal
-        };
-      });
-      
-      return result;
+      return data || [];
     }
   });
-  
-  // 8. Top 5 Revenue Generating Products - Already implemented in RevenueReportsPage
-  
-  // 9. Products With Above-Average Price in Category
-  const { data: aboveAvgPriceProducts = [], isLoading: aboveAvgPriceProductsLoading, error: aboveAvgPriceProductsError } = useQuery({
-    queryKey: ['above-avg-price-products'],
+
+  // Query 7: Average Rental Duration
+  const { data: avgRentalDuration = [], isLoading: avgRentalDurationLoading } = useQuery({
+    queryKey: ['data-queries', 'avg-rental-duration'],
     queryFn: async () => {
-      const { data: products, error } = await supabase
+      const { data: rentals, error: rentalsError } = await supabase
+        .from('rentals')
+        .select('product_id, rental_start, rental_end');
+        
+      if (rentalsError) {
+        toast.error('Error fetching rental durations: ' + rentalsError.message);
+        throw rentalsError;
+      }
+      
+      // Group rentals by product
+      const productRentals = new Map();
+      rentals.forEach(rental => {
+        if (!rental.product_id || !rental.rental_start || !rental.rental_end) return;
+        
+        if (!productRentals.has(rental.product_id)) {
+          productRentals.set(rental.product_id, []);
+        }
+        
+        const duration = calculateDateDifference(rental.rental_start, rental.rental_end);
+        productRentals.get(rental.product_id).push(duration);
+      });
+      
+      // Calculate average duration for each product
+      const productDurations = Array.from(productRentals.entries()).map(([productId, durations]) => {
+        const avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
+        return { product_id: productId, avg_duration: avgDuration };
+      });
+      
+      // Get product names
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('product_id, name')
+        .in('product_id', productDurations.map(p => p.product_id));
+        
+      if (productsError) {
+        toast.error('Error fetching product details: ' + productsError.message);
+        throw productsError;
+      }
+      
+      // Join product names with durations
+      return productDurations.map(pd => {
+        const product = products.find(p => p.product_id === pd.product_id);
+        return {
+          product_name: product?.name || 'Unknown',
+          avg_duration: pd.avg_duration.toFixed(1)
+        };
+      });
+    }
+  });
+
+  // Query 8: Top 5 Revenue Products
+  const { data: topRevenueProducts = [], isLoading: topRevenueProductsLoading } = useQuery({
+    queryKey: ['data-queries', 'top-revenue-products'],
+    queryFn: async () => {
+      const { data: rentals, error: rentalsError } = await supabase
+        .from('rentals')
+        .select('product_id, total_cost');
+        
+      if (rentalsError) {
+        toast.error('Error fetching rental revenue: ' + rentalsError.message);
+        throw rentalsError;
+      }
+      
+      // Group rentals by product and calculate total revenue
+      const productRevenue = new Map();
+      rentals.forEach(rental => {
+        if (!rental.product_id || !rental.total_cost) return;
+        
+        if (!productRevenue.has(rental.product_id)) {
+          productRevenue.set(rental.product_id, 0);
+        }
+        
+        productRevenue.set(rental.product_id, productRevenue.get(rental.product_id) + rental.total_cost);
+      });
+      
+      // Get top 5 products by revenue
+      const topProductIds = Array.from(productRevenue.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([id, _]) => id);
+      
+      // Get product names
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('product_id, name')
+        .in('product_id', topProductIds);
+        
+      if (productsError) {
+        toast.error('Error fetching top revenue products: ' + productsError.message);
+        throw productsError;
+      }
+      
+      // Join product names with revenue
+      return Array.from(productRevenue.entries())
+        .filter(([id, _]) => topProductIds.includes(id))
+        .map(([id, revenue]) => {
+          const product = products.find(p => p.product_id === id);
+          return {
+            product_name: product?.name || 'Unknown',
+            revenue: revenue
+          };
+        })
+        .sort((a, b) => b.revenue - a.revenue);
+    }
+  });
+
+  // Query 9: Products Above Category Avg Price
+  const { data: aboveAvgProducts = [], isLoading: aboveAvgProductsLoading } = useQuery({
+    queryKey: ['data-queries', 'above-avg-products'],
+    queryFn: async () => {
+      const { data: products, error: productsError } = await supabase
         .from('products')
         .select('product_id, name, category, rental_price');
         
+      if (productsError) {
+        toast.error('Error fetching products: ' + productsError.message);
+        throw productsError;
+      }
+      
+      // Calculate category averages
+      const categoryPrices = new Map();
+      products.forEach(product => {
+        if (!product.category || !product.rental_price) return;
+        
+        if (!categoryPrices.has(product.category)) {
+          categoryPrices.set(product.category, []);
+        }
+        
+        categoryPrices.get(product.category).push(product.rental_price);
+      });
+      
+      const categoryAvgs = new Map();
+      categoryPrices.forEach((prices, category) => {
+        const avg = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+        categoryAvgs.set(category, avg);
+      });
+      
+      // Filter products above their category average
+      return products
+        .filter(product => 
+          product.rental_price > (categoryAvgs.get(product.category) || 0)
+        )
+        .map(({ name, category, rental_price }) => ({ name, category, rental_price }));
+    }
+  });
+
+  // Query 10: Sellers and Admins
+  const { data: sellersAdmins = [], isLoading: sellersAdminsLoading } = useQuery({
+    queryKey: ['data-queries', 'sellers-admins'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, role')
+        .in('role', ['owner', 'admin']);
+        
       if (error) {
-        toast.error(`Error fetching products: ${error.message}`);
+        toast.error('Error fetching sellers and admins: ' + error.message);
         throw error;
       }
       
-      // Group products by category and calculate average price per category
-      const categoryPrices = {};
-      
-      products.forEach(product => {
-        const category = product.category;
-        
-        if (!categoryPrices[category]) {
-          categoryPrices[category] = { total: 0, count: 0, products: [] };
-        }
-        
-        categoryPrices[category].total += product.rental_price;
-        categoryPrices[category].count += 1;
-        categoryPrices[category].products.push(product);
-      });
-      
-      // Find products with above average price in their category
-      const result = [];
-      
-      Object.keys(categoryPrices).forEach(category => {
-        const { total, count, products } = categoryPrices[category];
-        const avgPrice = count > 0 ? total / count : 0;
-        
-        products.forEach(product => {
-          if (product.rental_price > avgPrice) {
-            result.push({
-              product_id: product.product_id,
-              name: product.name,
-              category: product.category,
-              rental_price: product.rental_price,
-              category_avg_price: Math.round(avgPrice * 100) / 100 // Round to 2 decimals
-            });
-          }
-        });
-      });
-      
-      return result;
+      return data || [];
     }
   });
-  
-  // 10. Sellers and Admins Emails
-  const { data: sellersAdminsEmails = [], isLoading: sellersAdminsEmailsLoading, error: sellersAdminsEmailsError } = useQuery({
-    queryKey: ['sellers-admins-emails'],
-    queryFn: async () => {
-      // Get owners (sellers)
-      const { data: owners, error: ownersError } = await supabase
-        .from('users')
-        .select('email, role')
-        .eq('role', 'owner');
-        
-      if (ownersError) {
-        toast.error(`Error fetching owners: ${ownersError.message}`);
-        throw ownersError;
-      }
-      
-      // Get admins
-      const { data: admins, error: adminsError } = await supabase
-        .from('users')
-        .select('email, role')
-        .eq('role', 'admin');
-        
-      if (adminsError) {
-        toast.error(`Error fetching admins: ${adminsError.message}`);
-        throw adminsError;
-      }
-      
-      // Combine results
-      return [...(owners || []), ...(admins || [])];
-    }
-  });
-  
-  // 11. Users With Role Labels
-  const { data: usersWithRoleLabels = [], isLoading: usersWithRoleLabelsLoading, error: usersWithRoleLabelsError } = useQuery({
-    queryKey: ['users-with-role-labels'],
+
+  // Query 11: Users with Role Labels
+  const { data: usersWithRoles = [], isLoading: usersWithRolesLoading } = useQuery({
+    queryKey: ['data-queries', 'users-with-roles'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
         .select('name, role');
         
       if (error) {
-        toast.error(`Error fetching users: ${error.message}`);
+        toast.error('Error fetching users with roles: ' + error.message);
         throw error;
       }
       
-      return data.map(user => {
-        let role_label;
-        switch (user.role) {
-          case 'renter':
-            role_label = 'Customer';
-            break;
-          case 'owner':
-            role_label = 'Product Lister';
-            break;
-          case 'admin':
-            role_label = 'Administrator';
-            break;
-          default:
-            role_label = 'Unknown';
-        }
-        
-        return {
-          name: user.name,
-          role_label
-        };
-      }) || [];
+      return data.map(user => ({
+        name: user.name,
+        role_label: user.role === 'renter' ? 'Customer' :
+                   user.role === 'owner' ? 'Product Lister' :
+                   user.role === 'admin' ? 'Administrator' : 
+                   user.role === 'both' ? 'Customer & Product Lister' : 'Unknown'
+      })) || [];
     }
   });
-  
-  // 12. Mens Tuxedo Under 1500
-  const { data: mensTuxedos = [], isLoading: mensTuxedosLoading, error: mensTuxedosError } = useQuery({
-    queryKey: ['mens-tuxedos'],
+
+  // Query 12: Men's Tuxedo under $1500
+  const { data: mensTuxedos = [], isLoading: mensTuxedosLoading } = useQuery({
+    queryKey: ['data-queries', 'mens-tuxedos'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
@@ -349,18 +378,19 @@ export function DataQueriesPage() {
         .lt('rental_price', 1500);
         
       if (error) {
-        toast.error(`Error fetching mens tuxedos: ${error.message}`);
+        toast.error('Error fetching mens tuxedos: ' + error.message);
         throw error;
       }
       
       return data || [];
     }
   });
-  
-  // 13. Womens Products With High Ratings & Low Price
-  const { data: highRatedWomensProducts = [], isLoading: highRatedWomensProductsLoading, error: highRatedWomensProductsError } = useQuery({
-    queryKey: ['high-rated-womens'],
+
+  // Query 13: Women's Products High Rating Low Price
+  const { data: womensProducts = [], isLoading: womensProductsLoading } = useQuery({
+    queryKey: ['data-queries', 'womens-products'],
     queryFn: async () => {
+      // Get all womens products under $1300
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('product_id, name, rental_price')
@@ -368,520 +398,466 @@ export function DataQueriesPage() {
         .lt('rental_price', 1300);
         
       if (productsError) {
-        toast.error(`Error fetching womens products: ${productsError.message}`);
+        toast.error('Error fetching womens products: ' + productsError.message);
         throw productsError;
       }
       
-      if (products.length === 0) {
-        return [];
-      }
-      
-      // Get ratings for these products
+      // Get reviews for these products
       const productIds = products.map(p => p.product_id);
-      
       const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
         .select('product_id, rating')
         .in('product_id', productIds);
         
       if (reviewsError) {
-        toast.error(`Error fetching product reviews: ${reviewsError.message}`);
+        toast.error('Error fetching product reviews: ' + reviewsError.message);
         throw reviewsError;
       }
       
-      // Calculate average rating per product
-      const productRatings = {};
-      
+      // Calculate average ratings
+      const productRatings = new Map();
       reviews.forEach(review => {
-        if (!productRatings[review.product_id]) {
-          productRatings[review.product_id] = { total: 0, count: 0 };
+        if (!productRatings.has(review.product_id)) {
+          productRatings.set(review.product_id, []);
         }
         
-        productRatings[review.product_id].total += review.rating;
-        productRatings[review.product_id].count += 1;
+        productRatings.get(review.product_id).push(review.rating);
       });
       
-      // Filter products with avg rating >= 4
-      const result = products
+      // Return products with avg rating >= 4
+      return products
         .filter(product => {
-          const rating = productRatings[product.product_id];
-          if (!rating) return false;
+          const ratings = productRatings.get(product.product_id) || [];
+          if (ratings.length === 0) return false;
           
-          const avgRating = rating.total / rating.count;
+          const avgRating = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
           return avgRating >= 4;
         })
         .map(product => {
-          const rating = productRatings[product.product_id];
-          const avgRating = rating ? rating.total / rating.count : 0;
+          const ratings = productRatings.get(product.product_id) || [];
+          const avgRating = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
           
           return {
-            product_id: product.product_id,
-            name: product.name,
-            rental_price: product.rental_price,
-            avg_rating: Math.round(avgRating * 10) / 10 // Round to 1 decimal
+            ...product,
+            avg_rating: avgRating.toFixed(1)
           };
         });
-      
-      return result;
     }
   });
-  
-  // 14. Accessories (Quantity >3 & Cleaned Last Month)
-  const { data: accessoriesMaintenance = [], isLoading: accessoriesMaintenanceLoading, error: accessoriesMaintenanceError } = useQuery({
-    queryKey: ['accessories-maintenance'],
+
+  // Query 14: Accessories cleaned last month with quantity > 3
+  const { data: accessories = [], isLoading: accessoriesLoading } = useQuery({
+    queryKey: ['data-queries', 'accessories'],
     queryFn: async () => {
-      // Get current date and calculate last month
+      // Get date for last month
       const now = new Date();
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+      const startOfLastMonth = lastMonth.toISOString().split('T')[0];
+      const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
       
-      const lastMonthStart = lastMonth.toISOString().split('T')[0];
-      const lastMonthEndStr = lastMonthEnd.toISOString().split('T')[0];
-      
-      // Get accessories with quantity > 3
-      const { data: accessories, error: accessoriesError } = await supabase
+      const { data, error } = await supabase
         .from('products')
-        .select('product_id, name, available_quantity')
+        .select(`
+          product_id,
+          name,
+          available_quantity,
+          maintenance(last_cleaned)
+        `)
         .eq('category', 'accessories')
         .gt('available_quantity', 3);
         
-      if (accessoriesError) {
-        toast.error(`Error fetching accessories: ${accessoriesError.message}`);
-        throw accessoriesError;
+      if (error) {
+        toast.error('Error fetching accessories: ' + error.message);
+        throw error;
       }
       
-      if (accessories.length === 0) {
-        return [];
-      }
-      
-      // Get maintenance records for those products
-      const productIds = accessories.map(p => p.product_id);
-      
-      const { data: maintenance, error: maintenanceError } = await supabase
-        .from('maintenance')
-        .select('product_id, last_cleaned')
-        .in('product_id', productIds)
-        .gte('last_cleaned', lastMonthStart)
-        .lte('last_cleaned', lastMonthEndStr);
-        
-      if (maintenanceError) {
-        toast.error(`Error fetching maintenance records: ${maintenanceError.message}`);
-        throw maintenanceError;
-      }
-      
-      // Map maintenance records to products
-      const maintenanceMap = {};
-      maintenance.forEach(record => {
-        maintenanceMap[record.product_id] = record.last_cleaned;
-      });
-      
-      // Return products with maintenance records
-      return accessories
-        .filter(product => maintenanceMap[product.product_id])
-        .map(product => ({
-          product_id: product.product_id,
-          name: product.name,
-          available_quantity: product.available_quantity,
-          last_cleaned: maintenanceMap[product.product_id]
-        }));
+      // Filter for last month cleaned
+      return data
+        .filter(item => {
+          const cleanDate = item.maintenance?.[0]?.last_cleaned;
+          if (!cleanDate) return false;
+          
+          return cleanDate >= startOfLastMonth && cleanDate <= endOfLastMonth;
+        })
+        .map(item => ({
+          product_id: item.product_id,
+          name: item.name,
+          available_quantity: item.available_quantity,
+          last_cleaned: item.maintenance?.[0]?.last_cleaned
+        })) || [];
     }
   });
-  
-  // 15. Sorted Mens and Womens by Rating
-  const { data: sortedByRating = [], isLoading: sortedByRatingLoading, error: sortedByRatingError } = useQuery({
-    queryKey: ['sorted-by-rating'],
+
+  // Query 15: Mens/Womens Products by Rating
+  const { data: productsByRating = [], isLoading: productsByRatingLoading } = useQuery({
+    queryKey: ['data-queries', 'products-by-rating'],
     queryFn: async () => {
+      // Get mens/womens products
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('product_id, name, category')
         .in('category', ['mens', 'womens']);
         
       if (productsError) {
-        toast.error(`Error fetching mens/womens products: ${productsError.message}`);
+        toast.error('Error fetching mens/womens products: ' + productsError.message);
         throw productsError;
       }
       
-      if (products.length === 0) {
-        return [];
-      }
-      
-      // Get ratings for these products
+      // Get reviews for these products
       const productIds = products.map(p => p.product_id);
-      
       const { data: reviews, error: reviewsError } = await supabase
         .from('reviews')
-        .select('product_id, rating');
+        .select('product_id, rating')
+        .in('product_id', productIds);
         
       if (reviewsError) {
-        toast.error(`Error fetching product reviews: ${reviewsError.message}`);
+        toast.error('Error fetching product reviews: ' + reviewsError.message);
         throw reviewsError;
       }
       
-      // Calculate average rating per product
-      const productRatings = {};
-      
+      // Calculate average ratings
+      const productRatings = new Map();
       reviews.forEach(review => {
-        if (!productRatings[review.product_id]) {
-          productRatings[review.product_id] = { total: 0, count: 0 };
+        if (!productRatings.has(review.product_id)) {
+          productRatings.set(review.product_id, []);
         }
         
-        productRatings[review.product_id].total += review.rating;
-        productRatings[review.product_id].count += 1;
+        productRatings.get(review.product_id).push(review.rating);
       });
       
-      // Map ratings to products and sort
-      const result = products
+      // Return products with ratings, sorted
+      return products
         .map(product => {
-          const rating = productRatings[product.product_id];
-          const avgRating = rating ? rating.total / rating.count : 0;
+          const ratings = productRatings.get(product.product_id) || [];
+          const avgRating = ratings.length > 0 
+            ? ratings.reduce((sum, r) => sum + r, 0) / ratings.length 
+            : 0;
           
           return {
-            product_id: product.product_id,
-            name: product.name,
-            category: product.category,
-            avg_rating: avgRating ? Math.round(avgRating * 10) / 10 : 0 // Round to 1 decimal
+            ...product,
+            avg_rating: avgRating
           };
         })
-        .filter(product => product.avg_rating > 0)
         .sort((a, b) => b.avg_rating - a.avg_rating);
-      
-      return result;
-    }
-  });
-  
-  // 16. Users Who Buy and Sell (with filters)
-  const { data: buyersAndSellers = [], isLoading: buyersAndSellersLoading, error: buyersAndSellersError } = useQuery({
-    queryKey: ['buyers-and-sellers'],
-    queryFn: async () => {
-      // This is a complex query that needs multiple steps
-      
-      // First get all users
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('user_id, name, email');
-        
-      if (usersError) {
-        toast.error(`Error fetching users: ${usersError.message}`);
-        throw usersError;
-      }
-      
-      // For each user, check if they have products (as owner)
-      const { data: productsOwned, error: productsOwnedError } = await supabase
-        .from('products')
-        .select('owner_id, product_id');
-        
-      if (productsOwnedError) {
-        toast.error(`Error fetching owned products: ${productsOwnedError.message}`);
-        throw productsOwnedError;
-      }
-      
-      // For each user, check if they have rentals (as renter)
-      const { data: rentals, error: rentalsError } = await supabase
-        .from('rentals')
-        .select('renter_id, total_cost');
-        
-      if (rentalsError) {
-        toast.error(`Error fetching rentals: ${rentalsError.message}`);
-        throw rentalsError;
-      }
-      
-      // Group products by owner
-      const productsByOwner = {};
-      productsOwned.forEach(product => {
-        if (!productsByOwner[product.owner_id]) {
-          productsByOwner[product.owner_id] = [];
-        }
-        productsByOwner[product.owner_id].push(product.product_id);
-      });
-      
-      // Group rentals by renter and sum costs
-      const rentalsByRenter = {};
-      rentals.forEach(rental => {
-        if (!rentalsByRenter[rental.renter_id]) {
-          rentalsByRenter[rental.renter_id] = { total: 0, count: 0 };
-        }
-        rentalsByRenter[rental.renter_id].total += rental.total_cost;
-        rentalsByRenter[rental.renter_id].count += 1;
-      });
-      
-      // Find users who are both buyers and sellers with the given conditions
-      const result = users
-        .filter(user => {
-          const productsListed = productsByOwner[user.user_id]?.length || 0;
-          const totalRentalCost = rentalsByRenter[user.user_id]?.total || 0;
-          
-          return productsListed > 2 && totalRentalCost > 700;
-        })
-        .map(user => {
-          return {
-            user_id: user.user_id,
-            name: user.name,
-            email: user.email,
-            total_products_listed: productsByOwner[user.user_id]?.length || 0,
-            total_spent_on_rentals: rentalsByRenter[user.user_id]?.total || 0
-          };
-        });
-      
-      return result;
     }
   });
 
+  // Query 16: Users who are both sellers and renters
+  const { data: sellerRenters = [], isLoading: sellerRentersLoading } = useQuery({
+    queryKey: ['data-queries', 'seller-renters'],
+    queryFn: async () => {
+      // First approach: users with role 'both'
+      const { data: bothUsers, error: bothError } = await supabase
+        .from('users')
+        .select('user_id, name, email')
+        .eq('role', 'both');
+        
+      if (bothError) {
+        toast.error('Error fetching users with both roles: ' + bothError.message);
+        throw bothError;
+      }
+      
+      // Get product counts for these users
+      const userProductCounts = new Map();
+      for (const user of bothUsers) {
+        const { data: products, error: productsError } = await supabase
+          .from('products')
+          .select('product_id')
+          .eq('owner_id', user.user_id);
+          
+        if (!productsError) {
+          userProductCounts.set(user.user_id, products.length);
+        }
+      }
+      
+      // Get rental costs for these users
+      const userRentalCosts = new Map();
+      for (const user of bothUsers) {
+        const { data: rentals, error: rentalsError } = await supabase
+          .from('rentals')
+          .select('total_cost')
+          .eq('renter_id', user.user_id);
+          
+        if (!rentalsError) {
+          const totalCost = rentals.reduce((sum, rental) => sum + (rental.total_cost || 0), 0);
+          userRentalCosts.set(user.user_id, totalCost);
+        }
+      }
+      
+      // Filter and format results
+      return bothUsers
+        .filter(user => 
+          (userProductCounts.get(user.user_id) || 0) > 2 &&
+          (userRentalCosts.get(user.user_id) || 0) > 700
+        )
+        .map(user => ({
+          user_id: user.user_id,
+          name: user.name,
+          email: user.email,
+          total_products_listed: userProductCounts.get(user.user_id) || 0,
+          total_spent_on_rentals: userRentalCosts.get(user.user_id) || 0
+        }));
+    }
+  });
+
+  // Loading state for all queries
+  const isLoading = rentersLoading || rentalPairsLoading || productsPerOwnerLoading ||
+                    ownersWithManyLoading || highSpendersLoading || unrentedProductsLoading ||
+                    avgRentalDurationLoading || topRevenueProductsLoading || aboveAvgProductsLoading ||
+                    sellersAdminsLoading || usersWithRolesLoading || mensTuxedosLoading ||
+                    womensProductsLoading || accessoriesLoading || productsByRatingLoading ||
+                    sellerRentersLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-lg text-muted-foreground">Loading data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Database Query Results</h1>
-      <p className="text-muted-foreground">View results from various SQL queries across the database</p>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Data Queries</h1>
+        <Button 
+          variant="outline" 
+          onClick={() => window.location.reload()}
+        >
+          Refresh Data
+        </Button>
+      </div>
       
-      <Card>
-        <CardContent className="p-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 mb-8">
-              <TabsTrigger value="renters">Renters</TabsTrigger>
-              <TabsTrigger value="rental-pairs">Rental Info</TabsTrigger>
-              <TabsTrigger value="product-counts">Product Counts</TabsTrigger>
-              <TabsTrigger value="owners-3plus">Owners 3+ Prod.</TabsTrigger>
-              <TabsTrigger value="high-spenders">High Spenders</TabsTrigger>
-              <TabsTrigger value="unrented">Unrented</TabsTrigger>
-              <TabsTrigger value="durations">Durations</TabsTrigger>
-              <TabsTrigger value="high-revenue">Top Revenue</TabsTrigger>
-              <TabsTrigger value="above-avg-price">Above Avg. Price</TabsTrigger>
-              <TabsTrigger value="admin-seller">Admins/Owners</TabsTrigger>
-              <TabsTrigger value="role-labels">Role Labels</TabsTrigger>
-              <TabsTrigger value="mens-tuxedo">Mens Tuxedos</TabsTrigger>
-              <TabsTrigger value="womens-rated">Womens Rated</TabsTrigger>
-              <TabsTrigger value="accessories">Accessories</TabsTrigger>
-              <TabsTrigger value="sorted-rating">Rating Sorted</TabsTrigger>
-              <TabsTrigger value="both-roles">Buy & Sell</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="renters" className="mt-0 border-0">
-              <DataTable
-                title="Renters"
-                description="Users with role = 'renter'"
-                columns={[
-                  { key: 'user_id', label: 'User ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'email', label: 'Email' }
-                ]}
-                data={renters}
-                isLoading={rentersLoading}
-                error={rentersError instanceof Error ? rentersError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="rental-pairs" className="mt-0 border-0">
-              <DataTable
-                title="Rental Pairs"
-                description="Renter, Product, and Owner relationships"
-                columns={[
-                  { key: 'rental_id', label: 'Rental ID' },
-                  { key: 'renter_name', label: 'Renter' },
-                  { key: 'product_name', label: 'Product' },
-                  { key: 'owner_name', label: 'Owner' }
-                ]}
-                data={rentalPairs}
-                isLoading={rentalPairsLoading}
-                error={rentalPairsError instanceof Error ? rentalPairsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="product-counts" className="mt-0 border-0">
-              <DataTable
-                title="Products Count by Owner"
-                description="Number of products listed by each owner"
-                columns={[
-                  { key: 'owner_name', label: 'Owner' },
-                  { key: 'total_products', label: 'Total Products' }
-                ]}
-                data={productsByOwner}
-                isLoading={productsByOwnerLoading}
-                error={productsByOwnerError instanceof Error ? productsByOwnerError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="owners-3plus" className="mt-0 border-0">
-              <DataTable
-                title="Owners with More Than 2 Products"
-                description="Owners who have listed more than 2 products"
-                columns={[
-                  { key: 'owner_name', label: 'Owner' },
-                  { key: 'total_products', label: 'Total Products' }
-                ]}
-                data={ownersWithManyProducts}
-                isLoading={ownersWithManyProductsLoading}
-                error={ownersWithManyProductsError instanceof Error ? ownersWithManyProductsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="high-spenders" className="mt-0 border-0">
-              <DataTable
-                title="Buyers Who Spent More Than Average"
-                description="Users who spent more than the average rental cost"
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'user_id', label: 'User ID' },
-                  { key: 'total_spent', label: 'Total Spent' }
-                ]}
-                data={highSpendingBuyers}
-                isLoading={highSpendingBuyersLoading}
-                error={highSpendingBuyersError instanceof Error ? highSpendingBuyersError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="unrented" className="mt-0 border-0">
-              <p className="text-sm text-muted-foreground mb-4">
-                Please visit the <a href="/unrented-products" className="text-primary underline">Unrented Products</a> page to see this data.
-              </p>
-            </TabsContent>
-            
-            <TabsContent value="durations" className="mt-0 border-0">
-              <DataTable
-                title="Average Renting Duration by Product"
-                description="Average rental duration in days for each product"
-                columns={[
-                  { key: 'product_id', label: 'Product ID' },
-                  { key: 'product_name', label: 'Product' },
-                  { key: 'avg_duration', label: 'Avg. Duration (Days)' }
-                ]}
-                data={productDurations}
-                isLoading={productDurationsLoading}
-                error={productDurationsError instanceof Error ? productDurationsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="high-revenue" className="mt-0 border-0">
-              <p className="text-sm text-muted-foreground mb-4">
-                Please visit the <a href="/revenue-reports" className="text-primary underline">Revenue Reports</a> page to see this data.
-              </p>
-            </TabsContent>
-            
-            <TabsContent value="above-avg-price" className="mt-0 border-0">
-              <DataTable
-                title="Products With Above-Average Price in Category"
-                description="Products priced higher than their category average"
-                columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'category_avg_price', label: 'Category Avg. Price' }
-                ]}
-                data={aboveAvgPriceProducts}
-                isLoading={aboveAvgPriceProductsLoading}
-                error={aboveAvgPriceProductsError instanceof Error ? aboveAvgPriceProductsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="admin-seller" className="mt-0 border-0">
-              <DataTable
-                title="Sellers and Admins Emails"
-                description="Emails of users with 'owner' or 'admin' roles"
-                columns={[
-                  { key: 'email', label: 'Email' },
-                  { key: 'role', label: 'Role' }
-                ]}
-                data={sellersAdminsEmails}
-                isLoading={sellersAdminsEmailsLoading}
-                error={sellersAdminsEmailsError instanceof Error ? sellersAdminsEmailsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="role-labels" className="mt-0 border-0">
-              <DataTable
-                title="Users With Role Labels"
-                description="Users with human-readable role labels"
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'role_label', label: 'Role' }
-                ]}
-                data={usersWithRoleLabels}
-                isLoading={usersWithRoleLabelsLoading}
-                error={usersWithRoleLabelsError instanceof Error ? usersWithRoleLabelsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="mens-tuxedo" className="mt-0 border-0">
-              <DataTable
-                title="Mens Tuxedo Under $1500"
-                description="Men's tuxedos with rental price less than $1500"
-                columns={[
-                  { key: 'product_id', label: 'Product ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'sub_category', label: 'Sub-Category' },
-                  { key: 'rental_price', label: 'Price' }
-                ]}
-                data={mensTuxedos}
-                isLoading={mensTuxedosLoading}
-                error={mensTuxedosError instanceof Error ? mensTuxedosError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="womens-rated" className="mt-0 border-0">
-              <DataTable
-                title="Womens Products With High Ratings & Low Price"
-                description="Women's products with avg rating ≥ 4 and price < $1300"
-                columns={[
-                  { key: 'product_id', label: 'Product ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'avg_rating', label: 'Avg. Rating' }
-                ]}
-                data={highRatedWomensProducts}
-                isLoading={highRatedWomensProductsLoading}
-                error={highRatedWomensProductsError instanceof Error ? highRatedWomensProductsError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="accessories" className="mt-0 border-0">
-              <DataTable
-                title="Accessories (Quantity >3 & Cleaned Last Month)"
-                description="Accessories with quantity > 3 that were cleaned last month"
-                columns={[
-                  { key: 'product_id', label: 'Product ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'available_quantity', label: 'Quantity' },
-                  { key: 'last_cleaned', label: 'Last Cleaned' }
-                ]}
-                data={accessoriesMaintenance}
-                isLoading={accessoriesMaintenanceLoading}
-                error={accessoriesMaintenanceError instanceof Error ? accessoriesMaintenanceError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="sorted-rating" className="mt-0 border-0">
-              <DataTable
-                title="Sorted Mens and Womens by Rating"
-                description="Men's and women's products sorted by average rating"
-                columns={[
-                  { key: 'product_id', label: 'Product ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'avg_rating', label: 'Avg. Rating' }
-                ]}
-                data={sortedByRating}
-                isLoading={sortedByRatingLoading}
-                error={sortedByRatingError instanceof Error ? sortedByRatingError.message : null}
-              />
-            </TabsContent>
-            
-            <TabsContent value="both-roles" className="mt-0 border-0">
-              <DataTable
-                title="Users Who Buy and Sell (with filters)"
-                description="Users who have listed >2 products and spent >$700 on rentals"
-                columns={[
-                  { key: 'user_id', label: 'User ID' },
-                  { key: 'name', label: 'Name' },
-                  { key: 'email', label: 'Email' },
-                  { key: 'total_products_listed', label: 'Products Listed' },
-                  { key: 'total_spent_on_rentals', label: 'Total Spent' }
-                ]}
-                data={buyersAndSellers}
-                isLoading={buyersAndSellersLoading}
-                error={buyersAndSellersError instanceof Error ? buyersAndSellersError.message : null}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 mb-8">
+          <TabsTrigger value="renters">Renters</TabsTrigger>
+          <TabsTrigger value="rental-pairs">Rental Pairs</TabsTrigger>
+          <TabsTrigger value="products-per-owner">Products/Owner</TabsTrigger>
+          <TabsTrigger value="owners-with-many">Owners >2 Products</TabsTrigger>
+          <TabsTrigger value="high-spenders">High Spenders</TabsTrigger>
+          <TabsTrigger value="unrented">Unrented</TabsTrigger>
+          <TabsTrigger value="avg-duration">Avg Duration</TabsTrigger>
+          <TabsTrigger value="top-revenue">Top Revenue</TabsTrigger>
+          <TabsTrigger value="above-avg-price">Above Avg Price</TabsTrigger>
+          <TabsTrigger value="sellers-admins">Sellers & Admins</TabsTrigger>
+          <TabsTrigger value="user-roles">User Roles</TabsTrigger>
+          <TabsTrigger value="mens-tuxedo">Mens Tuxedo</TabsTrigger>
+          <TabsTrigger value="womens-rated">Womens Rated</TabsTrigger>
+          <TabsTrigger value="accessories">Accessories</TabsTrigger>
+          <TabsTrigger value="by-rating">By Rating</TabsTrigger>
+          <TabsTrigger value="seller-renters">Seller-Renters</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="renters">
+          <DataTable
+            title="List of Renters"
+            description="All users who can rent products"
+            columns={[
+              { key: 'user_id', label: 'User ID' },
+              { key: 'name', label: 'Name' },
+              { key: 'email', label: 'Email' }
+            ]}
+            data={renters}
+          />
+        </TabsContent>
+        
+        <TabsContent value="rental-pairs">
+          <DataTable
+            title="Rental Pairs"
+            description="Relationships between renters, products, and owners"
+            columns={[
+              { key: 'rental_id', label: 'Rental ID' },
+              { key: 'renter_name', label: 'Renter' },
+              { key: 'product_name', label: 'Product' },
+              { key: 'owner_name', label: 'Owner' }
+            ]}
+            data={rentalPairs}
+          />
+        </TabsContent>
+        
+        <TabsContent value="products-per-owner">
+          <DataTable
+            title="Products Per Owner"
+            description="Number of products each user is renting out"
+            columns={[
+              { key: 'owner_name', label: 'Owner' },
+              { key: 'total_products', label: 'Total Products' }
+            ]}
+            data={productsPerOwner}
+          />
+        </TabsContent>
+        
+        <TabsContent value="owners-with-many">
+          <DataTable
+            title="Owners With >2 Products"
+            description="Users who own more than 2 products"
+            columns={[
+              { key: 'owner_name', label: 'Owner' },
+              { key: 'total_products', label: 'Total Products' }
+            ]}
+            data={ownersWithMany}
+          />
+        </TabsContent>
+        
+        <TabsContent value="high-spenders">
+          <DataTable
+            title="High Spenders"
+            description="Buyers with above average spending"
+            columns={[
+              { key: 'name', label: 'Name' }
+            ]}
+            data={highSpenders}
+          />
+        </TabsContent>
+        
+        <TabsContent value="unrented">
+          <DataTable
+            title="Unrented Products"
+            description="Products that have never been rented"
+            columns={[
+              { key: 'product_id', label: 'Product ID' },
+              { key: 'name', label: 'Product Name' }
+            ]}
+            data={unrentedProducts}
+          />
+        </TabsContent>
+        
+        <TabsContent value="avg-duration">
+          <DataTable
+            title="Average Rental Duration"
+            description="Average days each product is rented for"
+            columns={[
+              { key: 'product_name', label: 'Product' },
+              { key: 'avg_duration', label: 'Avg. Duration (Days)' }
+            ]}
+            data={avgRentalDuration}
+          />
+        </TabsContent>
+        
+        <TabsContent value="top-revenue">
+          <DataTable
+            title="Top 5 Revenue Products"
+            description="Products generating the most revenue"
+            columns={[
+              { key: 'product_name', label: 'Product' },
+              { key: 'revenue', label: 'Revenue ($)' }
+            ]}
+            data={topRevenueProducts}
+          />
+        </TabsContent>
+        
+        <TabsContent value="above-avg-price">
+          <DataTable
+            title="Above Average Price"
+            description="Products priced higher than their category average"
+            columns={[
+              { key: 'name', label: 'Product' },
+              { key: 'category', label: 'Category' },
+              { key: 'rental_price', label: 'Rental Price ($)' }
+            ]}
+            data={aboveAvgProducts}
+          />
+        </TabsContent>
+        
+        <TabsContent value="sellers-admins">
+          <DataTable
+            title="Sellers and Admins"
+            description="Email addresses of all sellers and administrators"
+            columns={[
+              { key: 'email', label: 'Email' },
+              { key: 'role', label: 'Role' }
+            ]}
+            data={sellersAdmins}
+          />
+        </TabsContent>
+        
+        <TabsContent value="user-roles">
+          <DataTable
+            title="User Roles"
+            description="Users with human-readable role labels"
+            columns={[
+              { key: 'name', label: 'Name' },
+              { key: 'role_label', label: 'Role' }
+            ]}
+            data={usersWithRoles}
+          />
+        </TabsContent>
+        
+        <TabsContent value="mens-tuxedo">
+          <DataTable
+            title="Men's Tuxedo Under $1500"
+            description="Affordable tuxedo rental options"
+            columns={[
+              { key: 'product_id', label: 'ID' },
+              { key: 'name', label: 'Name' },
+              { key: 'rental_price', label: 'Price ($)' }
+            ]}
+            data={mensTuxedos}
+          />
+        </TabsContent>
+        
+        <TabsContent value="womens-rated">
+          <DataTable
+            title="Women's Products - High Rating, Low Price"
+            description="Women's products under $1300 with 4+ star ratings"
+            columns={[
+              { key: 'product_id', label: 'ID' },
+              { key: 'name', label: 'Name' },
+              { key: 'rental_price', label: 'Price ($)' },
+              { key: 'avg_rating', label: 'Rating' }
+            ]}
+            data={womensProducts}
+          />
+        </TabsContent>
+        
+        <TabsContent value="accessories">
+          <DataTable
+            title="Accessories - Stock > 3, Recently Cleaned"
+            description="Accessories with good availability and recent maintenance"
+            columns={[
+              { key: 'product_id', label: 'ID' },
+              { key: 'name', label: 'Name' },
+              { key: 'available_quantity', label: 'Quantity' },
+              { key: 'last_cleaned', label: 'Cleaned Date' }
+            ]}
+            data={accessories}
+          />
+        </TabsContent>
+        
+        <TabsContent value="by-rating">
+          <DataTable
+            title="Mens/Womens Products by Rating"
+            description="Clothing items sorted by customer ratings"
+            columns={[
+              { key: 'product_id', label: 'ID' },
+              { key: 'name', label: 'Name' },
+              { key: 'category', label: 'Category' },
+              { key: 'avg_rating', label: 'Avg. Rating' }
+            ]}
+            data={productsByRating.map(product => ({
+              ...product,
+              avg_rating: product.avg_rating.toFixed(1)
+            }))}
+          />
+        </TabsContent>
+        
+        <TabsContent value="seller-renters">
+          <DataTable
+            title="Sellers Who Are Also Renters"
+            description="Users who list 3+ items and spent >$700 on rentals"
+            columns={[
+              { key: 'name', label: 'Name' },
+              { key: 'email', label: 'Email' },
+              { key: 'total_products_listed', label: 'Products Listed' },
+              { key: 'total_spent_on_rentals', label: 'Total Spent ($)' }
+            ]}
+            data={sellerRenters}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
