@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FilterIcon, SearchIcon, X, Loader2, Star } from "lucide-react";
 import { useProductCategories } from "@/integrations/supabase/hooks";
 import { useProductsWithDetails } from "@/hooks/useProductsWithDetails";
+import { AddProductButton } from "@/components/AddProductButton";
 
 type CategoryType = 'all' | string;
 type SortOption = 'price-asc' | 'price-desc' | 'rating-desc';
@@ -90,7 +90,10 @@ export function ProductsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <h1 className="text-3xl font-bold">Browse Products</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">Browse Products</h1>
+          <AddProductButton />
+        </div>
         
         <div className="flex items-center gap-2">
           <Button
@@ -115,7 +118,8 @@ export function ProductsPage() {
         </div>
       </div>
       
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col-reverse lg:flex-row gap-6">
+        {/* Filters - Now positioned on the left side */}
         <aside className={`${showFilters ? 'block' : 'hidden'} md:block lg:w-64 space-y-6 flex-shrink-0`}>
           <Card>
             <CardContent className="pt-6">
@@ -216,6 +220,7 @@ export function ProductsPage() {
           </Card>
         </aside>
         
+        {/* Product listing area */}
         <div className="flex-1">
           <div className="flex justify-between items-center mb-6">
             <p className="text-sm text-muted-foreground">

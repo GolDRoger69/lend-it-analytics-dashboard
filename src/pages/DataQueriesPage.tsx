@@ -11,6 +11,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 
+// Define explicit types for our DataTable columns to include formatter
+interface DataTableColumn {
+  key: string;
+  label: string;
+  formatter?: (value: any) => React.ReactNode;
+}
+
 export function DataQueriesPage() {
   const [activeTab, setActiveTab] = useState("products");
   const [productCategoriesFilter, setProductCategoriesFilter] = useState<string[]>([]);
@@ -29,9 +36,18 @@ export function DataQueriesPage() {
         throw error;
       }
       
-      // Manually get unique categories since we can't use .distinct()
-      const uniqueCategories = Array.from(new Set(data.map(item => item.category)));
-      return uniqueCategories.map(category => ({ category }));
+      // Manually get unique categories
+      const uniqueCategories: {category: string}[] = [];
+      const categories = new Set<string>();
+      
+      data.forEach(item => {
+        if (item.category && !categories.has(item.category)) {
+          categories.add(item.category);
+          uniqueCategories.push({ category: item.category });
+        }
+      });
+      
+      return uniqueCategories;
     }
   });
   
@@ -50,8 +66,17 @@ export function DataQueriesPage() {
       }
       
       // Manually get unique sub-categories
-      const uniqueSubCategories = Array.from(new Set(data.map(item => item.sub_category)));
-      return uniqueSubCategories.map(sub_category => ({ sub_category }));
+      const uniqueSubCategories: {sub_category: string}[] = [];
+      const subCategories = new Set<string>();
+      
+      data.forEach(item => {
+        if (item.sub_category && !subCategories.has(item.sub_category)) {
+          subCategories.add(item.sub_category);
+          uniqueSubCategories.push({ sub_category: item.sub_category });
+        }
+      });
+      
+      return uniqueSubCategories;
     }
   });
   
@@ -59,66 +84,70 @@ export function DataQueriesPage() {
   const { data: topRentedProducts = [], isLoading: isLoadingTopRented } = useQuery({
     queryKey: ['topRentedProducts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_top_rented_products', { limit_count: 10 })
-        .select('*');
-      
-      if (error) {
-        // If RPC function doesn't exist, fall back to a regular query
-        if (error.message.includes('function "get_top_rented_products" does not exist')) {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('rentals')
-            .select(`
-              product_id,
-              products!inner (
-                name,
-                category,
-                sub_category,
-                rental_price
-              )
-            `)
-            .order('product_id');
-          
-          if (fallbackError) {
-            toast.error(`Error fetching top rented products: ${fallbackError.message}`);
-            throw fallbackError;
-          }
-          
-          // Count occurrences of each product_id
-          const productCounts = fallbackData.reduce((acc, rental) => {
-            acc[rental.product_id] = (acc[rental.product_id] || 0) + 1;
-            return acc;
-          }, {});
-          
-          // Create a list of unique products with their rental counts
-          const uniqueProducts = [];
-          const seenProducts = new Set();
-          
-          for (const rental of fallbackData) {
-            if (!seenProducts.has(rental.product_id)) {
-              seenProducts.add(rental.product_id);
-              uniqueProducts.push({
-                product_id: rental.product_id,
-                name: rental.products.name,
-                category: rental.products.category,
-                sub_category: rental.products.sub_category,
-                rental_price: rental.products.rental_price,
-                rental_count: productCounts[rental.product_id]
-              });
+      try {
+        const { data, error } = await supabase
+          .rpc('get_top_rented_products', { limit_count: 10 });
+        
+        if (error) {
+          // If RPC function doesn't exist, fall back to a regular query
+          if (error.message.includes('function "get_top_rented_products" does not exist')) {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('rentals')
+              .select(`
+                product_id,
+                products!inner (
+                  name,
+                  category,
+                  sub_category,
+                  rental_price
+                )
+              `);
+            
+            if (fallbackError) {
+              toast.error(`Error fetching top rented products: ${fallbackError.message}`);
+              throw fallbackError;
             }
+            
+            // Count occurrences of each product_id
+            const productCounts: Record<string, number> = {};
+            fallbackData.forEach(rental => {
+              const productId = rental.product_id.toString();
+              productCounts[productId] = (productCounts[productId] || 0) + 1;
+            });
+            
+            // Create a list of unique products with their rental counts
+            const uniqueProducts: any[] = [];
+            const seenProducts = new Set<number>();
+            
+            for (const rental of fallbackData) {
+              if (!seenProducts.has(rental.product_id)) {
+                seenProducts.add(rental.product_id);
+                uniqueProducts.push({
+                  product_id: rental.product_id,
+                  name: rental.products.name,
+                  category: rental.products.category,
+                  sub_category: rental.products.sub_category,
+                  rental_price: rental.products.rental_price,
+                  rental_count: productCounts[rental.product_id.toString()]
+                });
+              }
+            }
+            
+            // Sort by rental_count in descending order and take the top 10
+            return uniqueProducts
+              .sort((a, b) => b.rental_count - a.rental_count)
+              .slice(0, 10);
           }
           
-          // Sort by rental_count in descending order and take the top 10
-          return uniqueProducts
-            .sort((a, b) => b.rental_count - a.rental_count)
-            .slice(0, 10);
+          toast.error(`Error fetching top rented products: ${error.message}`);
+          throw error;
         }
         
-        toast.error(`Error fetching top rented products: ${error.message}`);
-        throw error;
+        return data || [];
+      } catch (error) {
+        console.error("Error in topRentedProducts query:", error);
+        return [];
       }
-      
-      return data || [];
     }
   });
   
@@ -126,66 +155,71 @@ export function DataQueriesPage() {
   const { data: topRevenueProducts = [], isLoading: isLoadingTopRevenue } = useQuery({
     queryKey: ['topRevenueProducts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_top_revenue_products', { limit_count: 10 })
-        .select('*');
-      
-      if (error) {
-        // If RPC function doesn't exist, fall back to a regular query
-        if (error.message.includes('function "get_top_revenue_products" does not exist')) {
-          const { data: fallbackData, error: fallbackError } = await supabase
-            .from('rentals')
-            .select(`
-              product_id,
-              total_cost,
-              products!inner (
-                name,
-                category,
-                sub_category,
-                rental_price
-              )
-            `);
-          
-          if (fallbackError) {
-            toast.error(`Error fetching top revenue products: ${fallbackError.message}`);
-            throw fallbackError;
-          }
-          
-          // Sum total_cost for each product_id
-          const productRevenue = fallbackData.reduce((acc, rental) => {
-            acc[rental.product_id] = (acc[rental.product_id] || 0) + parseFloat(rental.total_cost);
-            return acc;
-          }, {});
-          
-          // Create a list of unique products with their total revenue
-          const uniqueProducts = [];
-          const seenProducts = new Set();
-          
-          for (const rental of fallbackData) {
-            if (!seenProducts.has(rental.product_id)) {
-              seenProducts.add(rental.product_id);
-              uniqueProducts.push({
-                product_id: rental.product_id,
-                name: rental.products.name,
-                category: rental.products.category,
-                sub_category: rental.products.sub_category,
-                rental_price: rental.products.rental_price,
-                total_revenue: productRevenue[rental.product_id]
-              });
+      try {
+        const { data, error } = await supabase
+          .rpc('get_top_revenue_products', { limit_count: 10 });
+        
+        if (error) {
+          // If RPC function doesn't exist, fall back to a regular query
+          if (error.message.includes('function "get_top_revenue_products" does not exist')) {
+            const { data: fallbackData, error: fallbackError } = await supabase
+              .from('rentals')
+              .select(`
+                product_id,
+                total_cost,
+                products!inner (
+                  name,
+                  category,
+                  sub_category,
+                  rental_price
+                )
+              `);
+            
+            if (fallbackError) {
+              toast.error(`Error fetching top revenue products: ${fallbackError.message}`);
+              throw fallbackError;
             }
+            
+            // Sum total_cost for each product_id
+            const productRevenue: Record<string, number> = {};
+            fallbackData.forEach(rental => {
+              const productId = rental.product_id.toString();
+              productRevenue[productId] = (productRevenue[productId] || 0) + parseFloat(rental.total_cost);
+            });
+            
+            // Create a list of unique products with their total revenue
+            const uniqueProducts: any[] = [];
+            const seenProducts = new Set<number>();
+            
+            for (const rental of fallbackData) {
+              if (!seenProducts.has(rental.product_id)) {
+                seenProducts.add(rental.product_id);
+                uniqueProducts.push({
+                  product_id: rental.product_id,
+                  name: rental.products.name,
+                  category: rental.products.category,
+                  sub_category: rental.products.sub_category,
+                  rental_price: rental.products.rental_price,
+                  total_revenue: productRevenue[rental.product_id.toString()]
+                });
+              }
+            }
+            
+            // Sort by total_revenue in descending order and take the top 10
+            return uniqueProducts
+              .sort((a, b) => b.total_revenue - a.total_revenue)
+              .slice(0, 10);
           }
           
-          // Sort by total_revenue in descending order and take the top 10
-          return uniqueProducts
-            .sort((a, b) => b.total_revenue - a.total_revenue)
-            .slice(0, 10);
+          toast.error(`Error fetching top revenue products: ${error.message}`);
+          throw error;
         }
         
-        toast.error(`Error fetching top revenue products: ${error.message}`);
-        throw error;
+        return data || [];
+      } catch (error) {
+        console.error("Error in topRevenueProducts query:", error);
+        return [];
       }
-      
-      return data || [];
     }
   });
   
@@ -193,43 +227,47 @@ export function DataQueriesPage() {
   const { data: unrentedProducts = [], isLoading: isLoadingUnrented } = useQuery({
     queryKey: ['unrentedProducts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_unrented_products')
-        .select('*');
-      
-      if (error) {
-        // If RPC function doesn't exist, fall back to a regular query
-        if (error.message.includes('function "get_unrented_products" does not exist')) {
-          const { data: products, error: productsError } = await supabase
-            .from('products')
-            .select('*');
-          
-          if (productsError) {
-            toast.error(`Error fetching products: ${productsError.message}`);
-            throw productsError;
+      try {
+        const { data, error } = await supabase
+          .rpc('get_unrented_products');
+        
+        if (error) {
+          // If RPC function doesn't exist, fall back to a regular query
+          if (error.message.includes('function "get_unrented_products" does not exist')) {
+            const { data: products, error: productsError } = await supabase
+              .from('products')
+              .select('*');
+            
+            if (productsError) {
+              toast.error(`Error fetching products: ${productsError.message}`);
+              throw productsError;
+            }
+            
+            const { data: rentals, error: rentalsError } = await supabase
+              .from('rentals')
+              .select('product_id');
+            
+            if (rentalsError) {
+              toast.error(`Error fetching rentals: ${rentalsError.message}`);
+              throw rentalsError;
+            }
+            
+            // Get all product IDs that have been rented
+            const rentedProductIds = new Set(rentals.map(rental => rental.product_id));
+            
+            // Filter products to get only those that haven't been rented
+            return products.filter(product => !rentedProductIds.has(product.product_id));
           }
           
-          const { data: rentals, error: rentalsError } = await supabase
-            .from('rentals')
-            .select('product_id');
-          
-          if (rentalsError) {
-            toast.error(`Error fetching rentals: ${rentalsError.message}`);
-            throw rentalsError;
-          }
-          
-          // Get all product IDs that have been rented
-          const rentedProductIds = new Set(rentals.map(rental => rental.product_id));
-          
-          // Filter products to get only those that haven't been rented
-          return products.filter(product => !rentedProductIds.has(product.product_id));
+          toast.error(`Error fetching unrented products: ${error.message}`);
+          throw error;
         }
         
-        toast.error(`Error fetching unrented products: ${error.message}`);
-        throw error;
+        return data || [];
+      } catch (error) {
+        console.error("Error in unrentedProducts query:", error);
+        return [];
       }
-      
-      return data || [];
     }
   });
   
@@ -238,29 +276,34 @@ export function DataQueriesPage() {
     return useQuery({
       queryKey: ['maintenance', status],
       queryFn: async () => {
-        const { data, error } = await supabase
-          .from('maintenance')
-          .select(`
-            maintenance_id,
-            status,
-            last_cleaned,
-            next_cleaning_due,
-            product_id,
-            products (
-              name
-            )
-          `)
-          .eq('status', status);
-        
-        if (error) {
-          toast.error(`Error fetching ${status} maintenance: ${error.message}`);
-          throw error;
+        try {
+          const { data, error } = await supabase
+            .from('maintenance')
+            .select(`
+              maintenance_id,
+              status,
+              last_cleaned,
+              next_cleaning_due,
+              product_id,
+              products (
+                name
+              )
+            `)
+            .eq('status', status);
+          
+          if (error) {
+            toast.error(`Error fetching ${status} maintenance: ${error.message}`);
+            throw error;
+          }
+          
+          return data.map(record => ({
+            ...record,
+            product_name: record.products?.name || 'Unknown Product'
+          }));
+        } catch (error) {
+          console.error(`Error in ${status} maintenance query:`, error);
+          return [];
         }
-        
-        return data.map(record => ({
-          ...record,
-          product_name: record.products?.name || 'Unknown Product'
-        }));
       }
     });
   };
@@ -344,7 +387,7 @@ export function DataQueriesPage() {
                   { key: "category", label: "Category" },
                   { key: "sub_category", label: "Subcategory" },
                   { key: "rental_count", label: "Number of Rentals" },
-                  { key: "rental_price", label: "Price per Day" },
+                  { key: "rental_price", label: "Price per Day" }
                 ]}
                 data={topRentedProducts.filter(product => 
                   productCategoriesFilter.length === 0 || 
@@ -410,7 +453,7 @@ export function DataQueriesPage() {
                   { key: "category", label: "Category" },
                   { key: "sub_category", label: "Subcategory" },
                   { key: "rental_price", label: "Price per Day" },
-                  { key: "available_quantity", label: "Available Quantity" },
+                  { key: "available_quantity", label: "Available Quantity" }
                 ]}
                 data={unrentedProducts.filter(product => 
                   productCategoriesFilter.length === 0 || 
@@ -434,27 +477,16 @@ export function DataQueriesPage() {
                 title=""
                 columns={[
                   { key: "product_name", label: "Product" },
-                  { 
-                    key: "last_cleaned", 
-                    label: "Last Cleaned",
-                    formatter: (value) => formatDate(value)
-                  },
-                  { 
-                    key: "next_cleaning_due", 
-                    label: "Next Due",
-                    formatter: (value) => formatDate(value)
-                  },
-                  { 
-                    key: "status", 
-                    label: "Status",
-                    formatter: () => (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Pending
-                      </span>
-                    )
-                  },
+                  { key: "last_cleaned", label: "Last Cleaned" },
+                  { key: "next_cleaning_due", label: "Next Due" },
+                  { key: "status", label: "Status" }
                 ]}
-                data={pendingMaintenance}
+                data={pendingMaintenance.map(item => ({
+                  ...item,
+                  last_cleaned: formatDate(item.last_cleaned),
+                  next_cleaning_due: formatDate(item.next_cleaning_due),
+                  status: "Pending"
+                }))}
                 isLoading={isLoadingPending}
               />
             </CardContent>
@@ -471,27 +503,16 @@ export function DataQueriesPage() {
                 title=""
                 columns={[
                   { key: "product_name", label: "Product" },
-                  { 
-                    key: "last_cleaned", 
-                    label: "Cleaned On",
-                    formatter: (value) => formatDate(value)
-                  },
-                  { 
-                    key: "next_cleaning_due", 
-                    label: "Next Due",
-                    formatter: (value) => formatDate(value)
-                  },
-                  { 
-                    key: "status", 
-                    label: "Status",
-                    formatter: () => (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Completed
-                      </span>
-                    )
-                  },
+                  { key: "last_cleaned", label: "Cleaned On" },
+                  { key: "next_cleaning_due", label: "Next Due" },
+                  { key: "status", label: "Status" }
                 ]}
-                data={completedMaintenance}
+                data={completedMaintenance.map(item => ({
+                  ...item,
+                  last_cleaned: formatDate(item.last_cleaned),
+                  next_cleaning_due: formatDate(item.next_cleaning_due),
+                  status: "Completed"
+                }))}
                 isLoading={isLoadingCompleted}
               />
             </CardContent>
@@ -512,18 +533,14 @@ export function DataQueriesPage() {
                   { key: "name", label: "Product Name" },
                   { key: "category", label: "Category" },
                   { key: "sub_category", label: "Subcategory" },
-                  { 
-                    key: "total_revenue", 
-                    label: "Total Revenue",
-                    formatter: (value) => `$${parseFloat(value).toFixed(2)}`
-                  },
-                  { 
-                    key: "rental_price", 
-                    label: "Price per Day",
-                    formatter: (value) => `$${parseFloat(value).toFixed(2)}`
-                  },
+                  { key: "total_revenue", label: "Total Revenue" },
+                  { key: "rental_price", label: "Price per Day" }
                 ]}
-                data={topRevenueProducts.filter(product => 
+                data={topRevenueProducts.map(product => ({
+                  ...product,
+                  total_revenue: `$${parseFloat(product.total_revenue).toFixed(2)}`,
+                  rental_price: `$${parseFloat(product.rental_price).toFixed(2)}`
+                })).filter(product => 
                   productCategoriesFilter.length === 0 || 
                   productCategoriesFilter.includes(product.category)
                 )}

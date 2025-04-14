@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth-context";
-import { supabase } from "@/integrations/supabase/client";
 
 export function RegisterPage() {
   const [name, setName] = useState("");
@@ -19,7 +18,7 @@ export function RegisterPage() {
   const [role, setRole] = useState("renter");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register } = useAuth();
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,31 +36,11 @@ export function RegisterPage() {
     try {
       setIsLoading(true);
       
-      // Insert the new user into the users table
-      const { data, error } = await supabase
-        .from('users')
-        .insert([
-          { name, email, phone, password, role }
-        ])
-        .select();
+      const success = await register({ name, email, phone, password, role });
       
-      if (error) {
-        console.error("Registration error:", error);
-        toast.error("Registration failed: " + error.message);
-        return;
-      }
-      
-      if (data && data.length > 0) {
+      if (success) {
         toast.success("Account created successfully");
-        
-        // Login the user
-        const success = await login(email, password);
-        
-        if (success) {
-          navigate("/dashboard");
-        } else {
-          navigate("/login");
-        }
+        navigate("/dashboard");
       }
     } catch (error) {
       console.error("Registration error:", error);
