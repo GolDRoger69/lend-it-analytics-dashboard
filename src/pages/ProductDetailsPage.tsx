@@ -3,477 +3,350 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth-context";
-import { toast } from "sonner";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { StarIcon, CalendarIcon, Loader2 } from "lucide-react";
-import { format } from "date-fns";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
-import { cn } from "@/lib/utils";
-
-// Create a schema for rental form
-const rentalSchema = z.object({
-  rentalStart: z.date({
-    required_error: "Rental start date is required",
-  }),
-  rentalEnd: z.date({
-    required_error: "Rental end date is required",
-  }),
-  quantity: z.number().min(1, "Must rent at least 1 item"),
-});
+import { toast } from "sonner";
+import { useAuth } from "@/lib/auth-context";
+import { Star, Loader2 } from "lucide-react";
 
 export function ProductDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
+  const [selectedStartDate, setSelectedStartDate] = useState<Date | undefined>(new Date());
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(new Date(Date.now() + (7 * 24 * 60 * 60 * 1000))); // 7 days from now
   const [isRenting, setIsRenting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  // Fetch product details
-  const { data: product, isLoading } = useQuery({
-    queryKey: ['product-details', id],
+  
+  const { data: product, isLoading, error } = useQuery({
+    queryKey: ['product', id],
     queryFn: async () => {
+      if (!id) throw new Error("Product ID is required");
+      
       const { data, error } = await supabase
         .from('products')
         .select(`
           *,
-          users!products_owner_id_fkey(name)
+          users!products_owner_id_fkey (
+            name
+          ),
+          reviews (
+            rating,
+            comment,
+            review_date,
+            users (
+              name
+            )
+          )
         `)
-        .eq('product_id', id)
+        .eq('product_id', parseInt(id))
         .single();
       
-      if (error) {
-        toast.error(`Error fetching product details: ${error.message}`);
-        throw error;
-      }
-
-      // Fetch product reviews
-      const { data: reviews, error: reviewsError } = await supabase
-        .from('reviews')
-        .select('rating, comment, review_date, users!reviews_user_id_fkey(name)')
-        .eq('product_id', id);
+      if (error) throw error;
       
-      if (reviewsError) {
-        toast.error(`Error fetching reviews: ${reviewsError.message}`);
-      }
-
       // Calculate average rating
-      let avgRating = 0;
-      if (reviews && reviews.length > 0) {
-        avgRating = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
-      }
-
+      const ratings = data.reviews.map((review: any) => review.rating);
+      const avgRating = ratings.length > 0
+        ? ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length
+        : 0;
+      
       return {
         ...data,
-        owner_name: data.users?.name,
-        reviews: reviews || [],
-        avg_rating: avgRating
+        avg_rating: parseFloat(avgRating.toFixed(1)),
+        // Generate placeholder image based on product name
+        image_url: `https://placehold.co/600x400?text=${encodeURIComponent(data.name)}`
       };
     }
   });
-
-  // Set up rental form
-  const form = useForm<z.infer<typeof rentalSchema>>({
-    resolver: zodResolver(rentalSchema),
-    defaultValues: {
-      quantity: 1
-    },
-  });
-
-  // Handle rental submission
-  async function onSubmit(values: z.infer<typeof rentalSchema>) {
-    if (!isAuthenticated || !user) {
-      toast.error("Please log in to rent products");
+  
+  const handleRent = async () => {
+    if (!user) {
+      toast.error("Please log in to rent this product");
       navigate("/login");
       return;
     }
-
-    if (!product) return;
     
-    const rentalStart = format(values.rentalStart, "yyyy-MM-dd");
-    const rentalEnd = format(values.rentalEnd, "yyyy-MM-dd");
+    if (!selectedStartDate || !selectedEndDate) {
+      toast.error("Please select rental start and end dates");
+      return;
+    }
     
-    // Calculate duration in days
-    const startDate = new Date(rentalStart);
-    const endDate = new Date(rentalEnd);
-    const differenceInTime = endDate.getTime() - startDate.getTime();
-    const differenceInDays = Math.ceil(differenceInTime / (1000 * 3600 * 24));
+    if (selectedEndDate < selectedStartDate) {
+      toast.error("End date cannot be before start date");
+      return;
+    }
     
-    // Calculate total cost
-    const totalCost = product.rental_price * differenceInDays * values.quantity;
+    // Calculate rental duration in days
+    const durationMs = selectedEndDate.getTime() - selectedStartDate.getTime();
+    const durationDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
+    
+    // Calculate total cost based on rental price and duration
+    const totalCost = product ? parseFloat((product.rental_price * durationDays).toFixed(2)) : 0;
     
     setIsRenting(true);
     
     try {
+      // Check if product is available (quantity > 0)
+      if (product && product.available_quantity < 1) {
+        toast.error("This product is currently not available");
+        setIsRenting(false);
+        return;
+      }
+      
       // Create rental record
-      const { data, error } = await supabase
+      const { data: rental, error: rentalError } = await supabase
         .from('rentals')
         .insert([
           {
+            product_id: parseInt(id!),
             renter_id: user.user_id,
-            product_id: product.product_id,
-            rental_start: rentalStart,
-            rental_end: rentalEnd,
+            rental_start: selectedStartDate.toISOString().split('T')[0],
+            rental_end: selectedEndDate.toISOString().split('T')[0],
             total_cost: totalCost,
-            status: 'pending'
+            status: 'active'
           }
         ])
         .select();
       
-      if (error) {
-        toast.error(`Error creating rental: ${error.message}`);
-        return;
-      }
+      if (rentalError) throw rentalError;
       
-      // Update product availability
+      // Update product available quantity
       const { error: updateError } = await supabase
         .from('products')
-        .update({ 
-          available_quantity: product.available_quantity - values.quantity 
-        })
-        .eq('product_id', product.product_id);
+        .update({ available_quantity: product!.available_quantity - 1 })
+        .eq('product_id', parseInt(id!));
       
-      if (updateError) {
-        toast.error(`Error updating product quantity: ${updateError.message}`);
-        return;
-      }
+      if (updateError) throw updateError;
+      
+      // Create payment record
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .insert([
+          {
+            rental_id: rental[0].rental_id,
+            user_id: user.user_id,
+            amount: totalCost,
+            payment_status: 'completed',
+            payment_date: new Date().toISOString()
+          }
+        ]);
+      
+      if (paymentError) throw paymentError;
       
       toast.success("Product rented successfully!");
-      setIsDialogOpen(false);
+      navigate("/dashboard");
       
-      // Reload the page to show updated availability
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-      
-    } catch (error) {
-      console.error("Error renting product:", error);
-      toast.error("An unexpected error occurred");
+    } catch (error: any) {
+      toast.error(`Failed to rent product: ${error.message}`);
+      console.error("Rental error:", error);
     } finally {
       setIsRenting(false);
     }
-  }
-
+  };
+  
+  // Helper function to render star ratings
+  const renderStarRating = (rating: number) => {
+    return (
+      <div className="flex items-center">
+        {[...Array(5)].map((_, index) => (
+          <Star
+            key={index}
+            size={18}
+            className={index < rating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}
+          />
+        ))}
+      </div>
+    );
+  };
+  
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
-
-  if (!product) {
+  
+  if (error || !product) {
     return (
-      <div className="text-center py-12">
-        <h2 className="text-2xl font-bold mb-2">Product Not Found</h2>
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+        <h2 className="text-2xl font-semibold mb-4">Product Not Found</h2>
         <p className="text-muted-foreground mb-6">
-          The product you're looking for doesn't exist or has been removed.
+          The product you're looking for could not be found or has been removed.
         </p>
         <Button onClick={() => navigate("/products")}>
-          Back to Products
+          Browse All Products
         </Button>
       </div>
     );
   }
-
-  const isOutOfStock = product.available_quantity < 1;
-
+  
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="mx-auto max-w-6xl">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Product Image */}
-        <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+        <div className="relative">
           <img
-            src={product.image_url || `https://placehold.co/800x800?text=${encodeURIComponent(product.name)}`}
+            src={product.image_url}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="w-full h-auto rounded-lg shadow-md"
           />
+          <div className="absolute top-4 right-4">
+            <Badge variant="secondary" className="text-lg px-3 py-1">
+              ${product.rental_price}/day
+            </Badge>
+          </div>
         </div>
         
         {/* Product Details */}
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold">{product.name}</h1>
-            <div className="flex items-center mt-2">
-              <div className="flex mr-2">
-                {[...Array(5)].map((_, i) => (
-                  <StarIcon
-                    key={i}
-                    className={`h-5 w-5 ${
-                      i < Math.floor(product.avg_rating)
-                        ? "text-yellow-400 fill-yellow-400"
-                        : "text-gray-300"
-                    }`}
-                  />
-                ))}
+            <div className="flex items-center justify-between">
+              <h1 className="text-3xl font-bold">{product.name}</h1>
+              <div className="flex items-center gap-1">
+                {renderStarRating(product.avg_rating)}
+                <span className="text-sm ml-1">({product.avg_rating})</span>
               </div>
-              <span className="text-sm">({product.avg_rating.toFixed(1)})</span>
-              <span className="mx-2">•</span>
-              <span className="text-muted-foreground">
-                {product.reviews.length} {product.reviews.length === 1 ? 'review' : 'reviews'}
-              </span>
             </div>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <div className="text-2xl font-bold">${product.rental_price.toFixed(2)}</div>
-            <div className="text-sm px-3 py-1 rounded-full bg-primary/10 text-primary">
-              Per Day
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Category:</span>
-              <span className="font-medium capitalize">{product.category}</span>
-            </div>
-            {product.sub_category && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Sub-category:</span>
-                <span className="font-medium capitalize">{product.sub_category}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Listed by:</span>
-              <span className="font-medium">{product.owner_name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Available:</span>
-              <span className={`font-medium ${isOutOfStock ? 'text-red-600' : 'text-green-600'}`}>
-                {isOutOfStock ? 'Out of Stock' : `${product.available_quantity} in stock`}
-              </span>
-            </div>
-          </div>
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                size="lg" 
-                className="w-full" 
-                disabled={isOutOfStock || !isAuthenticated}
-              >
-                {isOutOfStock ? 'Out of Stock' : 'Rent Now'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Rent {product.name}</DialogTitle>
-                <DialogDescription>
-                  Choose your rental dates and quantity.
-                </DialogDescription>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField
-                    control={form.control}
-                    name="rentalStart"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Start Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) =>
-                                date < new Date() || date > new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-                              }
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormDescription>
-                          When you want to receive the item.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="rentalEnd"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>End Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-full pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground"
-                                )}
-                              >
-                                {field.value ? (
-                                  format(field.value, "PPP")
-                                ) : (
-                                  <span>Pick a date</span>
-                                )}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => {
-                                const startDate = form.getValues("rentalStart");
-                                return (
-                                  !startDate ||
-                                  date <= startDate ||
-                                  date > new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-                                );
-                              }}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormDescription>
-                          When you plan to return the item.
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="quantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantity</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={product.available_quantity}
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          Maximum: {product.available_quantity} items
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <DialogFooter>
-                    <Button type="submit" disabled={isRenting}>
-                      {isRenting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        "Complete Rental"
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-          
-          {!isAuthenticated && (
-            <p className="text-sm text-center text-muted-foreground">
-              Please <a href="/login" className="text-primary hover:underline">log in</a> to rent this product
+            <p className="text-muted-foreground">
+              {product.category} &gt; {product.sub_category}
             </p>
-          )}
+            <p className="mt-2">
+              Owner: <span className="font-medium">{product.users?.name}</span>
+            </p>
+          </div>
+          
+          <Separator />
+          
+          {/* Rental Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Rent This Item</CardTitle>
+              <CardDescription>
+                Select your rental dates
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="mb-2 font-medium">Start Date</p>
+                  <Calendar
+                    mode="single"
+                    selected={selectedStartDate}
+                    onSelect={setSelectedStartDate}
+                    disabled={(date) => date < new Date()}
+                    className="border rounded-md"
+                  />
+                </div>
+                <div>
+                  <p className="mb-2 font-medium">End Date</p>
+                  <Calendar
+                    mode="single"
+                    selected={selectedEndDate}
+                    onSelect={setSelectedEndDate}
+                    disabled={(date) => date < (selectedStartDate || new Date())}
+                    className="border rounded-md"
+                  />
+                </div>
+              </div>
+              
+              <div className="bg-muted p-4 rounded-md">
+                <div className="flex justify-between mb-2">
+                  <span>Price per day:</span>
+                  <span>${product.rental_price}</span>
+                </div>
+                
+                {selectedStartDate && selectedEndDate && (
+                  <>
+                    <div className="flex justify-between mb-2">
+                      <span>Duration:</span>
+                      <span>
+                        {Math.ceil(
+                          (selectedEndDate.getTime() - selectedStartDate.getTime()) / 
+                          (1000 * 60 * 60 * 24)
+                        )} days
+                      </span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span>
+                        ${(
+                          product.rental_price * 
+                          Math.ceil(
+                            (selectedEndDate.getTime() - selectedStartDate.getTime()) / 
+                            (1000 * 60 * 60 * 24)
+                          )
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+            <CardFooter>
+              <div className="w-full space-y-2">
+                <Button 
+                  className="w-full" 
+                  onClick={handleRent}
+                  disabled={!user || isRenting || product.available_quantity < 1}
+                >
+                  {isRenting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : product.available_quantity < 1 ? (
+                    "Out of Stock"
+                  ) : (
+                    `Rent Now (${product.available_quantity} available)`
+                  )}
+                </Button>
+                
+                {!user && (
+                  <p className="text-center text-sm text-muted-foreground">
+                    Please <a href="/login" className="underline text-primary">log in</a> to rent this item
+                  </p>
+                )}
+              </div>
+            </CardFooter>
+          </Card>
         </div>
       </div>
       
-      {/* Reviews Section */}
-      <div className="mt-16">
-        <h2 className="text-2xl font-bold mb-4">Reviews</h2>
-        {product.reviews.length === 0 ? (
-          <p className="text-muted-foreground">No reviews yet for this product.</p>
-        ) : (
+      {/* Product Reviews */}
+      <div className="mt-12">
+        <h2 className="text-2xl font-semibold mb-6">Reviews</h2>
+        
+        {product.reviews && product.reviews.length > 0 ? (
           <div className="space-y-6">
-            {product.reviews.map((review, index) => (
+            {product.reviews.map((review: any, index: number) => (
               <Card key={index}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between">
-                    <CardTitle className="text-lg">{review.users?.name}</CardTitle>
-                    <div className="flex">
-                      {[...Array(5)].map((_, i) => (
-                        <StarIcon
-                          key={i}
-                          className={`h-4 w-4 ${
-                            i < review.rating
-                              ? "text-yellow-400 fill-yellow-400"
-                              : "text-gray-300"
-                          }`}
-                        />
-                      ))}
+                <CardContent className="pt-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        {renderStarRating(review.rating)}
+                        <span className="font-medium">{review.users.name}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {new Date(review.review_date).toLocaleDateString()}
+                      </p>
+                      <p>{review.comment}</p>
                     </div>
                   </div>
-                  <CardDescription>
-                    {new Date(review.review_date).toLocaleDateString()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p>{review.comment}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
+        ) : (
+          <Card>
+            <CardContent className="py-6">
+              <p className="text-center text-muted-foreground">No reviews yet for this product</p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
