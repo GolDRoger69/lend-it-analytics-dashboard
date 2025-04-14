@@ -1,8 +1,18 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from "react";
-import { User } from "./mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+// Update the User type to include "both" as a valid role
+export type UserRole = "renter" | "owner" | "admin" | "both";
+
+export interface User {
+  user_id: number;
+  name: string;
+  email: string;
+  phone: string;
+  role: UserRole;
+}
 
 interface AuthContextType {
   user: User | null;
@@ -56,12 +66,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data && data.password === password) {
         // In a real app, we would never store or compare raw passwords like this
-        const loggedInUser = {
+        const loggedInUser: User = {
           user_id: data.user_id,
           name: data.name,
           email: data.email,
           phone: data.phone,
-          role: data.role as "renter" | "owner" | "admin" | "both"
+          role: data.role as UserRole
         };
         
         setUser(loggedInUser);
@@ -98,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
+      // Fix the role type check constraint by ensuring it's one of the valid roles
+      const validRole = userData.role as UserRole;
+
       // Insert the new user
       const { data, error } = await supabase
         .from('users')
@@ -107,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             email: userData.email, 
             phone: userData.phone,
             password: userData.password, 
-            role: userData.role 
+            role: validRole
           }
         ])
         .select();
@@ -122,12 +135,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toast.success("Account created successfully");
         
         // Auto-login the user
-        const loggedInUser = {
+        const loggedInUser: User = {
           user_id: data[0].user_id,
           name: data[0].name,
           email: data[0].email,
           phone: data[0].phone,
-          role: data[0].role as "renter" | "owner" | "admin" | "both"
+          role: data[0].role as UserRole
         };
         
         setUser(loggedInUser);

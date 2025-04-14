@@ -8,7 +8,7 @@ export function AddProductButton() {
   const { isAuthenticated, user } = useAuth();
   
   // Only show button if user is authenticated and is an owner or has the "both" role
-  if (!isAuthenticated || !(user?.role === "owner" || user?.role === "both")) {
+  if (!isAuthenticated || (user?.role !== "owner" && user?.role !== "both")) {
     return null;
   }
   

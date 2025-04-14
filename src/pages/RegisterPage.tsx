@@ -138,7 +138,7 @@ export function RegisterPage() {
                 </div>
               </RadioGroup>
             </div>
-            <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+            <Button type="submit" className="w-full mt-6" disabled={isLoading} variant="default">
               {isLoading ? "Creating account..." : "Create account"}
             </Button>
           </form>
