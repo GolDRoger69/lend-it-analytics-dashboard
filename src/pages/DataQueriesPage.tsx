@@ -1,842 +1,612 @@
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DataTable } from "@/components/DataTable";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-
-// Type definitions for our query results
-interface RenterData {
-  name: string;
-  email: string;
-  phone: string;
-  rental_count: number;
-}
-
-interface CategoryDistribution {
-  category: string;
-  count: number;
-}
-
-interface SubcategoryDistribution {
-  sub_category: string;
-  count: number;
-}
-
-interface AvgRentalDuration {
-  category: string;
-  avg_duration_days: number;
-}
-
-interface TopRevenue {
-  name: string;
-  category: string;
-  total_revenue: number;
-}
-
-interface SellerAdminEmails {
-  email: string;
-  role: string;
-}
-
-interface RatedProduct {
-  name: string;
-  category: string;
-  avg_rating: number;
-}
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DataTable } from "@/components/DataTable";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, ArrowUpDown } from "lucide-react";
+import { toast } from "sonner";
 
 export function DataQueriesPage() {
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [activeTab, setActiveTab] = useState("products");
+  const [productCategoriesFilter, setProductCategoriesFilter] = useState<string[]>([]);
   
-  // Query to get top renters
-  const { data: topRenters = [], isLoading: isLoadingRenters } = useQuery({
-    queryKey: ['topRenters'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rentals')
-        .select(`
-          renter_id,
-          users!rentals_renter_id_fkey (
-            name,
-            email,
-            phone
-          )
-        `)
-        .order('renter_id');
-      
-      if (error) throw error;
-      
-      // Count rentals per user and format the data
-      const renterCounts: Record<string, RenterData> = {};
-      
-      data.forEach((rental: any) => {
-        const renterId = rental.renter_id;
-        const renterInfo = rental.users;
-        
-        if (!renterCounts[renterId]) {
-          renterCounts[renterId] = {
-            name: renterInfo.name,
-            email: renterInfo.email,
-            phone: renterInfo.phone,
-            rental_count: 1
-          };
-        } else {
-          renterCounts[renterId].rental_count++;
-        }
-      });
-      
-      return Object.values(renterCounts).sort((a, b) => b.rental_count - a.rental_count);
-    }
-  });
-  
-  // Query to get category distribution
-  const { data: categoryDistribution = [], isLoading: isLoadingCategories } = useQuery({
-    queryKey: ['categoryDistribution'],
+  // Query for all product categories
+  const { data: productCategories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['productCategories'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
         .select('category')
         .order('category');
       
-      if (error) throw error;
+      if (error) {
+        toast.error(`Error fetching categories: ${error.message}`);
+        throw error;
+      }
       
-      // Count products per category
-      const categoryCounts: Record<string, number> = {};
-      
-      data.forEach((product: any) => {
-        const category = product.category;
-        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-      });
-      
-      return Object.entries(categoryCounts).map(([category, count]) => ({
-        category,
-        count
-      }));
+      // Manually get unique categories since we can't use .distinct()
+      const uniqueCategories = Array.from(new Set(data.map(item => item.category)));
+      return uniqueCategories.map(category => ({ category }));
     }
   });
   
-  // Query to get subcategory distribution for the selected category
-  const { data: subcategoryDistribution = [], isLoading: isLoadingSubcategories } = useQuery({
-    queryKey: ['subcategoryDistribution', selectedCategory],
+  // Query for all product sub-categories
+  const { data: productSubCategories = [], isLoading: isLoadingSubCategories } = useQuery({
+    queryKey: ['productSubCategories'],
     queryFn: async () => {
-      if (!selectedCategory) return [];
-      
       const { data, error } = await supabase
         .from('products')
         .select('sub_category')
-        .eq('category', selectedCategory)
         .order('sub_category');
       
-      if (error) throw error;
-      
-      // Count products per subcategory
-      const subcategoryCounts: Record<string, number> = {};
-      
-      if (data) {
-        data.forEach((product: any) => {
-          const subcategory = product.sub_category;
-          subcategoryCounts[subcategory] = (subcategoryCounts[subcategory] || 0) + 1;
-        });
+      if (error) {
+        toast.error(`Error fetching sub-categories: ${error.message}`);
+        throw error;
       }
       
-      return Object.entries(subcategoryCounts).map(([sub_category, count]) => ({
-        sub_category,
-        count
-      }));
-    },
-    enabled: !!selectedCategory
-  });
-  
-  // Query to get average rental duration by category
-  const { data: avgRentalDuration = [], isLoading: isLoadingRentalDuration } = useQuery({
-    queryKey: ['avgRentalDuration'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rentals')
-        .select(`
-          rental_start,
-          rental_end,
-          products (
-            category
-          )
-        `);
-      
-      if (error) throw error;
-      
-      // Calculate average rental duration per category
-      const categoryDurations: Record<string, { sum: number; count: number }> = {};
-      
-      data.forEach((rental: any) => {
-        const category = rental.products?.category;
-        if (!category) return;
-        
-        const startDate = new Date(rental.rental_start);
-        const endDate = new Date(rental.rental_end);
-        const durationDays = (endDate.getTime() - startDate.getTime()) / (1000 * 3600 * 24);
-        
-        if (!categoryDurations[category]) {
-          categoryDurations[category] = { sum: durationDays, count: 1 };
-        } else {
-          categoryDurations[category].sum += durationDays;
-          categoryDurations[category].count += 1;
-        }
-      });
-      
-      return Object.entries(categoryDurations).map(([category, values]) => ({
-        category,
-        avg_duration_days: parseFloat((values.sum / values.count).toFixed(1))
-      }));
+      // Manually get unique sub-categories
+      const uniqueSubCategories = Array.from(new Set(data.map(item => item.sub_category)));
+      return uniqueSubCategories.map(sub_category => ({ sub_category }));
     }
   });
   
-  // Query to get top revenue generating products
-  const { data: topRevenue = [], isLoading: isLoadingTopRevenue } = useQuery({
-    queryKey: ['topRevenue'],
+  // Products with highest rental count
+  const { data: topRentedProducts = [], isLoading: isLoadingTopRented } = useQuery({
+    queryKey: ['topRentedProducts'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('rentals')
-        .select(`
-          total_cost,
-          products (
-            name,
-            category
-          )
-        `);
-      
-      if (error) throw error;
-      
-      // Calculate total revenue per product
-      const productRevenue: Record<string, TopRevenue> = {};
-      
-      data.forEach((rental: any) => {
-        const productName = rental.products?.name;
-        const category = rental.products?.category;
-        
-        if (!productName) return;
-        
-        const key = `${productName}-${category}`;
-        
-        if (!productRevenue[key]) {
-          productRevenue[key] = {
-            name: productName,
-            category: category || 'Unknown',
-            total_revenue: parseFloat(rental.total_cost) || 0
-          };
-        } else {
-          productRevenue[key].total_revenue += parseFloat(rental.total_cost) || 0;
-        }
-      });
-      
-      return Object.values(productRevenue)
-        .sort((a, b) => b.total_revenue - a.total_revenue)
-        .slice(0, 10);
-    }
-  });
-  
-  // Query to get products above average price
-  const { data: aboveAvgPrice = [], isLoading: isLoadingAboveAvgPrice } = useQuery({
-    queryKey: ['aboveAvgPrice'],
-    queryFn: async () => {
-      const { data: products, error: productsError } = await supabase
-        .from('products')
+        .rpc('get_top_rented_products', { limit_count: 10 })
         .select('*');
       
-      if (productsError) throw productsError;
-      
-      // Calculate average price
-      let totalPrice = 0;
-      products.forEach((product: any) => {
-        totalPrice += parseFloat(product.rental_price) || 0;
-      });
-      const avgPrice = totalPrice / products.length;
-      
-      // Filter products above average price
-      return products
-        .filter((product: any) => parseFloat(product.rental_price) > avgPrice)
-        .sort((a: any, b: any) => parseFloat(b.rental_price) - parseFloat(a.rental_price));
-    }
-  });
-  
-  // Query to get sellers and admins
-  const { data: sellersAdmins = [], isLoading: isLoadingSellersAdmins } = useQuery({
-    queryKey: ['sellersAdmins'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('email, role')
-        .in('role', ['owner', 'admin']);
-      
-      if (error) throw error;
-      
-      return data;
-    }
-  });
-  
-  // Query for aggregated user roles
-  const { data: roleLabels = [], isLoading: isLoadingRoleLabels } = useQuery({
-    queryKey: ['roleLabels'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('role');
-      
-      if (error) throw error;
-      
-      // Count users per role
-      const roleCounts: Record<string, number> = {};
-      
-      data.forEach((user: any) => {
-        const role = user.role;
-        roleCounts[role] = (roleCounts[role] || 0) + 1;
-      });
-      
-      return Object.entries(roleCounts).map(([role, count]) => ({
-        role,
-        count
-      }));
-    }
-  });
-  
-  // Query for affordable tuxedos
-  const { data: affordableTuxedos = [], isLoading: isLoadingAffordableTuxedos } = useQuery({
-    queryKey: ['affordableTuxedos'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          users!products_owner_id_fkey (
-            name
-          )
-        `)
-        .eq('sub_category', 'Tuxedo')
-        .lt('rental_price', 100)
-        .order('rental_price');
-      
-      if (error) throw error;
-      
-      return data;
-    }
-  });
-  
-  // Query for high-quality women's products
-  const { data: qualityWomens = [], isLoading: isLoadingQualityWomens } = useQuery({
-    queryKey: ['qualityWomens'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          users!products_owner_id_fkey (
-            name
-          ),
-          reviews!inner (
-            rating
-          )
-        `)
-        .eq('category', 'Women\'s Clothing')
-        .order('rental_price');
-      
-      if (error) throw error;
-      
-      // Filter for products with average rating >= 4
-      const productsWithAvgRating = data.map((product: any) => {
-        const ratings = product.reviews.map((review: any) => review.rating);
-        const avgRating = ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length;
+      if (error) {
+        // If RPC function doesn't exist, fall back to a regular query
+        if (error.message.includes('function "get_top_rented_products" does not exist')) {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('rentals')
+            .select(`
+              product_id,
+              products!inner (
+                name,
+                category,
+                sub_category,
+                rental_price
+              )
+            `)
+            .order('product_id');
+          
+          if (fallbackError) {
+            toast.error(`Error fetching top rented products: ${fallbackError.message}`);
+            throw fallbackError;
+          }
+          
+          // Count occurrences of each product_id
+          const productCounts = fallbackData.reduce((acc, rental) => {
+            acc[rental.product_id] = (acc[rental.product_id] || 0) + 1;
+            return acc;
+          }, {});
+          
+          // Create a list of unique products with their rental counts
+          const uniqueProducts = [];
+          const seenProducts = new Set();
+          
+          for (const rental of fallbackData) {
+            if (!seenProducts.has(rental.product_id)) {
+              seenProducts.add(rental.product_id);
+              uniqueProducts.push({
+                product_id: rental.product_id,
+                name: rental.products.name,
+                category: rental.products.category,
+                sub_category: rental.products.sub_category,
+                rental_price: rental.products.rental_price,
+                rental_count: productCounts[rental.product_id]
+              });
+            }
+          }
+          
+          // Sort by rental_count in descending order and take the top 10
+          return uniqueProducts
+            .sort((a, b) => b.rental_count - a.rental_count)
+            .slice(0, 10);
+        }
         
-        return {
-          ...product,
-          avg_rating: parseFloat(avgRating.toFixed(1))
-        };
-      }).filter((product: any) => product.avg_rating >= 4);
+        toast.error(`Error fetching top rented products: ${error.message}`);
+        throw error;
+      }
       
-      return productsWithAvgRating;
+      return data || [];
     }
   });
   
-  // Query for clean accessories
-  const { data: cleanAccessories = [], isLoading: isLoadingCleanAccessories } = useQuery({
-    queryKey: ['cleanAccessories'],
+  // Products with highest revenue
+  const { data: topRevenueProducts = [], isLoading: isLoadingTopRevenue } = useQuery({
+    queryKey: ['topRevenueProducts'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          users!products_owner_id_fkey (
-            name
-          ),
-          maintenance!inner (
-            last_cleaned
-          )
-        `)
-        .eq('category', 'Accessories')
-        .gt('available_quantity', 3);
+        .rpc('get_top_revenue_products', { limit_count: 10 })
+        .select('*');
       
-      if (error) throw error;
-      
-      // Filter for products cleaned in the last month
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      
-      return data.filter((product: any) => {
-        const lastCleaned = new Date(product.maintenance[0].last_cleaned);
-        return lastCleaned > oneMonthAgo;
-      });
-    }
-  });
-  
-  // Query for products with ratings
-  const { data: ratedProducts = [], isLoading: isLoadingRatedProducts } = useQuery({
-    queryKey: ['ratedProducts'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          name,
-          category,
-          reviews (
-            rating
-          )
-        `)
-        .not('reviews', 'is', null);
-      
-      if (error) throw error;
-      
-      // Calculate average rating for each product
-      return data.map((product: any) => {
-        const ratings = product.reviews.map((review: any) => review.rating);
-        const avgRating = ratings.length > 0 
-          ? ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length
-          : 0;
+      if (error) {
+        // If RPC function doesn't exist, fall back to a regular query
+        if (error.message.includes('function "get_top_revenue_products" does not exist')) {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('rentals')
+            .select(`
+              product_id,
+              total_cost,
+              products!inner (
+                name,
+                category,
+                sub_category,
+                rental_price
+              )
+            `);
+          
+          if (fallbackError) {
+            toast.error(`Error fetching top revenue products: ${fallbackError.message}`);
+            throw fallbackError;
+          }
+          
+          // Sum total_cost for each product_id
+          const productRevenue = fallbackData.reduce((acc, rental) => {
+            acc[rental.product_id] = (acc[rental.product_id] || 0) + parseFloat(rental.total_cost);
+            return acc;
+          }, {});
+          
+          // Create a list of unique products with their total revenue
+          const uniqueProducts = [];
+          const seenProducts = new Set();
+          
+          for (const rental of fallbackData) {
+            if (!seenProducts.has(rental.product_id)) {
+              seenProducts.add(rental.product_id);
+              uniqueProducts.push({
+                product_id: rental.product_id,
+                name: rental.products.name,
+                category: rental.products.category,
+                sub_category: rental.products.sub_category,
+                rental_price: rental.products.rental_price,
+                total_revenue: productRevenue[rental.product_id]
+              });
+            }
+          }
+          
+          // Sort by total_revenue in descending order and take the top 10
+          return uniqueProducts
+            .sort((a, b) => b.total_revenue - a.total_revenue)
+            .slice(0, 10);
+        }
         
-        return {
-          name: product.name,
-          category: product.category,
-          avg_rating: parseFloat(avgRating.toFixed(1))
-        };
-      }).filter((product: any) => product.avg_rating > 0)
-        .sort((a: any, b: any) => b.avg_rating - a.avg_rating);
+        toast.error(`Error fetching top revenue products: ${error.message}`);
+        throw error;
+      }
+      
+      return data || [];
     }
   });
   
-  // Query for users who are both buyers and sellers
-  const { data: buyersSellers = [], isLoading: isLoadingBuyersSellers } = useQuery({
-    queryKey: ['buyersSellers'],
+  // Products that have never been rented
+  const { data: unrentedProducts = [], isLoading: isLoadingUnrented } = useQuery({
+    queryKey: ['unrentedProducts'],
     queryFn: async () => {
-      // Get all users who have rented products
-      const { data: renters, error: rentersError } = await supabase
-        .from('rentals')
-        .select('renter_id')
-        .distinct();
+      const { data, error } = await supabase
+        .rpc('get_unrented_products')
+        .select('*');
       
-      if (rentersError) throw rentersError;
+      if (error) {
+        // If RPC function doesn't exist, fall back to a regular query
+        if (error.message.includes('function "get_unrented_products" does not exist')) {
+          const { data: products, error: productsError } = await supabase
+            .from('products')
+            .select('*');
+          
+          if (productsError) {
+            toast.error(`Error fetching products: ${productsError.message}`);
+            throw productsError;
+          }
+          
+          const { data: rentals, error: rentalsError } = await supabase
+            .from('rentals')
+            .select('product_id');
+          
+          if (rentalsError) {
+            toast.error(`Error fetching rentals: ${rentalsError.message}`);
+            throw rentalsError;
+          }
+          
+          // Get all product IDs that have been rented
+          const rentedProductIds = new Set(rentals.map(rental => rental.product_id));
+          
+          // Filter products to get only those that haven't been rented
+          return products.filter(product => !rentedProductIds.has(product.product_id));
+        }
+        
+        toast.error(`Error fetching unrented products: ${error.message}`);
+        throw error;
+      }
       
-      // Get all users who have products listed
-      const { data: owners, error: ownersError } = await supabase
-        .from('products')
-        .select('owner_id')
-        .distinct();
-      
-      if (ownersError) throw ownersError;
-      
-      // Find users who are both renters and owners
-      const renterIds = renters.map((r: any) => r.renter_id);
-      const ownerIds = owners.map((o: any) => o.owner_id);
-      
-      const bothIds = renterIds.filter((id: number) => ownerIds.includes(id));
-      
-      // Get user details
-      if (bothIds.length === 0) return [];
-      
-      const { data: users, error: usersError } = await supabase
-        .from('users')
-        .select('*')
-        .in('user_id', bothIds);
-      
-      if (usersError) throw usersError;
-      
-      return users;
+      return data || [];
     }
   });
   
-  // Chart data transformations
-  const categoryColors = [
-    '#8884d8', '#83a6ed', '#8dd1e1', '#82ca9d', '#a4de6c',
-    '#d0ed57', '#ffc658', '#ff8042', '#ff6361', '#bc5090',
-  ];
+  // Query for maintenance records of specific status
+  const getMaintenanceByStatus = (status: string) => {
+    return useQuery({
+      queryKey: ['maintenance', status],
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from('maintenance')
+          .select(`
+            maintenance_id,
+            status,
+            last_cleaned,
+            next_cleaning_due,
+            product_id,
+            products (
+              name
+            )
+          `)
+          .eq('status', status);
+        
+        if (error) {
+          toast.error(`Error fetching ${status} maintenance: ${error.message}`);
+          throw error;
+        }
+        
+        return data.map(record => ({
+          ...record,
+          product_name: record.products?.name || 'Unknown Product'
+        }));
+      }
+    });
+  };
   
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#83A6ED'];
+  // Get maintenance records by status
+  const { data: pendingMaintenance = [], isLoading: isLoadingPending } = getMaintenanceByStatus('pending');
+  const { data: completedMaintenance = [], isLoading: isLoadingCompleted } = getMaintenanceByStatus('completed');
   
-  // Format role labels data for pie chart
-  const roleLabelsForChart = roleLabels.map((item: any, index: number) => ({
-    name: item.role,
-    value: item.count,
-    color: COLORS[index % COLORS.length],
-  }));
+  // Filter products by selected categories
+  const toggleCategoryFilter = (category: string) => {
+    setProductCategoriesFilter(prev => 
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
   
-  const handleCategoryClick = (data: any) => {
-    setSelectedCategory(data.category);
+  // Format dates for display
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
   };
   
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Data Queries & Analytics</h1>
-          <p className="text-muted-foreground">Explore complex data relationships and insights</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">Data Queries and Analysis</h1>
+        <p className="text-muted-foreground">
+          Explore and analyze rental data across different dimensions
+        </p>
       </div>
       
-      <Tabs defaultValue="renters">
-        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-          <TabsTrigger value="renters">Top Renters</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
-          <TabsTrigger value="avg-rental-duration">Avg Rental Duration</TabsTrigger>
-          <TabsTrigger value="top-revenue">Top Revenue</TabsTrigger>
-          <TabsTrigger value="above-avg-price">Above Avg Price</TabsTrigger>
-          <TabsTrigger value="sellers-admins">Sellers &amp; Admins</TabsTrigger>
-          <TabsTrigger value="role-labels">Role Labels</TabsTrigger>
-          <TabsTrigger value="affordable-tuxedos">Affordable Tuxedos</TabsTrigger>
-          <TabsTrigger value="quality-womens">Quality Women's</TabsTrigger>
-          <TabsTrigger value="clean-accessories">Clean Accessories</TabsTrigger>
-          <TabsTrigger value="rated-products">Rated Products</TabsTrigger>
-          <TabsTrigger value="buyers-sellers">Buyers &amp; Sellers</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 mb-8">
+          <TabsTrigger value="products">Products Analysis</TabsTrigger>
+          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+          <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="renters">Renter Analysis</TabsTrigger>
+          <TabsTrigger value="owners">Owner Analysis</TabsTrigger>
+          <TabsTrigger value="custom">Custom Queries</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="renters" className="mt-6">
+        <TabsContent value="products" className="space-y-8">
+          {/* Category Filter */}
           <Card>
             <CardHeader>
-              <CardTitle>Top Renters by Rental Count</CardTitle>
+              <CardTitle>Filter by Category</CardTitle>
+              <CardDescription>Select categories to filter products</CardDescription>
             </CardHeader>
             <CardContent>
-              <DataTable
-                title="Top Renters"
-                description="Users who rent the most products"
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'email', label: 'Email' },
-                  { key: 'phone', label: 'Phone' },
-                  { key: 'rental_count', label: 'Rentals' },
-                ]}
-                data={topRenters}
-                isLoading={isLoadingRenters}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="categories" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Product Categories Distribution</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col md:flex-row items-center gap-8">
-              <div className="w-full md:w-1/2">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={categoryDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="category" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar 
-                      dataKey="count" 
-                      name="Number of Products" 
-                      fill="#8884d8" 
-                      onClick={handleCategoryClick}
-                      cursor="pointer"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-                <p className="text-center text-sm text-muted-foreground mt-2">
-                  Click on a category to view subcategories
-                </p>
-              </div>
-              
-              <div className="w-full md:w-1/2">
-                {selectedCategory ? (
-                  <>
-                    <h4 className="font-semibold mb-4">Subcategories in {selectedCategory}</h4>
-                    {isLoadingSubcategories ? (
-                      <div className="flex items-center justify-center h-40">
-                        <p>Loading subcategories...</p>
-                      </div>
-                    ) : subcategoryDistribution.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={subcategoryDistribution} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="sub_category" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar 
-                            dataKey="count" 
-                            name="Number of Products" 
-                            fill="#82ca9d" 
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="flex items-center justify-center h-40">
-                        <p>No subcategories found for {selectedCategory}</p>
-                      </div>
-                    )}
-                  </>
+              <div className="flex flex-wrap gap-2">
+                {isLoadingCategories ? (
+                  <div>Loading categories...</div>
                 ) : (
-                  <div className="flex items-center justify-center h-40">
-                    <p>Select a category to view subcategories</p>
-                  </div>
+                  productCategories.map((cat, index) => (
+                    <Button
+                      key={index}
+                      variant={productCategoriesFilter.includes(cat.category) ? "default" : "outline"}
+                      onClick={() => toggleCategoryFilter(cat.category)}
+                      className="text-sm h-8"
+                    >
+                      {cat.category}
+                    </Button>
+                  ))
                 )}
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="avg-rental-duration" className="mt-6">
+          
+          {/* Top Rented Products */}
           <Card>
             <CardHeader>
-              <CardTitle>Average Rental Duration by Category (Days)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={avgRentalDuration} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar 
-                    dataKey="avg_duration_days" 
-                    name="Average Days" 
-                    fill="#8884d8" 
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="top-revenue" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Revenue Generating Products</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={topRevenue} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar 
-                    dataKey="total_revenue" 
-                    name="Total Revenue ($)" 
-                    fill="#82ca9d" 
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="above-avg-price" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Products Above Average Price</CardTitle>
+              <CardTitle>Most Frequently Rented Products</CardTitle>
+              <CardDescription>Products with the highest number of rentals</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable
-                title="Premium Products"
-                description="Products with rental prices above the average"
+                title=""
                 columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'sub_category', label: 'Subcategory' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'available_quantity', label: 'Quantity' },
+                  { key: "name", label: "Product Name" },
+                  { key: "category", label: "Category" },
+                  { key: "sub_category", label: "Subcategory" },
+                  { key: "rental_count", label: "Number of Rentals" },
+                  { key: "rental_price", label: "Price per Day" },
                 ]}
-                data={aboveAvgPrice}
-                isLoading={isLoadingAboveAvgPrice}
+                data={topRentedProducts.filter(product => 
+                  productCategoriesFilter.length === 0 || 
+                  productCategoriesFilter.includes(product.category)
+                )}
+                isLoading={isLoadingTopRented}
               />
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="sellers-admins" className="mt-6">
+          
+          {/* Product Categories Overview */}
           <Card>
             <CardHeader>
-              <CardTitle>Sellers and Administrators</CardTitle>
+              <CardTitle>Product Categories</CardTitle>
+              <CardDescription>Overview of product categories and subcategories</CardDescription>
             </CardHeader>
-            <CardContent>
-              <DataTable
-                title="Sellers &amp; Admin Emails"
-                description="Email addresses of all sellers and administrators"
-                columns={[
-                  { key: 'email', label: 'Email' },
-                  { key: 'role', label: 'Role' },
-                ]}
-                data={sellersAdmins}
-                isLoading={isLoadingSellersAdmins}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="role-labels" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>User Role Distribution</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center">
-              <div style={{ width: '100%', height: 400 }}>
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={roleLabelsForChart}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      outerRadius={150}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {roleLabelsForChart.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value} users`, 'Count']} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Main Categories</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {isLoadingCategories ? (
+                    <div className="col-span-full">Loading categories...</div>
+                  ) : (
+                    productCategories.map((cat, index) => (
+                      <div key={index} className="bg-muted p-4 rounded-lg">
+                        {cat.category}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">Sub Categories</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {isLoadingSubCategories ? (
+                    <div className="col-span-full">Loading subcategories...</div>
+                  ) : (
+                    productSubCategories.map((subCat, index) => (
+                      <div key={index} className="border border-border p-3 rounded-md">
+                        {subCat.sub_category}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        
-        <TabsContent value="affordable-tuxedos" className="mt-6">
+          
+          {/* Unrented Products */}
           <Card>
             <CardHeader>
-              <CardTitle>Affordable Tuxedo Listings (Under $100)</CardTitle>
+              <CardTitle>Unrented Products</CardTitle>
+              <CardDescription>Products that have never been rented</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable
-                title="Affordable Tuxedos"
-                description="Tuxedo rentals available for less than $100"
+                title=""
                 columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'users.name', label: 'Owner' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'available_quantity', label: 'Quantity' },
+                  { key: "name", label: "Product Name" },
+                  { key: "category", label: "Category" },
+                  { key: "sub_category", label: "Subcategory" },
+                  { key: "rental_price", label: "Price per Day" },
+                  { key: "available_quantity", label: "Available Quantity" },
                 ]}
-                data={affordableTuxedos}
-                isLoading={isLoadingAffordableTuxedos}
+                data={unrentedProducts.filter(product => 
+                  productCategoriesFilter.length === 0 || 
+                  productCategoriesFilter.includes(product.category)
+                )}
+                isLoading={isLoadingUnrented}
               />
             </CardContent>
           </Card>
         </TabsContent>
         
-        <TabsContent value="quality-womens" className="mt-6">
+        <TabsContent value="maintenance" className="space-y-8">
+          {/* Pending Maintenance */}
           <Card>
             <CardHeader>
-              <CardTitle>Women's Products with High Ratings &amp; Low Price</CardTitle>
+              <CardTitle>Pending Maintenance</CardTitle>
+              <CardDescription>Products that need cleaning or maintenance</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable
-                title="Quality Women's Clothing"
-                description="Women's clothing with ratings of 4+ stars"
+                title=""
                 columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'users.name', label: 'Owner' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'avg_rating', label: 'Rating' },
-                  { key: 'available_quantity', label: 'Quantity' },
+                  { key: "product_name", label: "Product" },
+                  { 
+                    key: "last_cleaned", 
+                    label: "Last Cleaned",
+                    formatter: (value) => formatDate(value)
+                  },
+                  { 
+                    key: "next_cleaning_due", 
+                    label: "Next Due",
+                    formatter: (value) => formatDate(value)
+                  },
+                  { 
+                    key: "status", 
+                    label: "Status",
+                    formatter: () => (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Pending
+                      </span>
+                    )
+                  },
                 ]}
-                data={qualityWomens}
-                isLoading={isLoadingQualityWomens}
+                data={pendingMaintenance}
+                isLoading={isLoadingPending}
+              />
+            </CardContent>
+          </Card>
+          
+          {/* Completed Maintenance */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Completed Maintenance</CardTitle>
+              <CardDescription>Maintenance history of products</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                title=""
+                columns={[
+                  { key: "product_name", label: "Product" },
+                  { 
+                    key: "last_cleaned", 
+                    label: "Cleaned On",
+                    formatter: (value) => formatDate(value)
+                  },
+                  { 
+                    key: "next_cleaning_due", 
+                    label: "Next Due",
+                    formatter: (value) => formatDate(value)
+                  },
+                  { 
+                    key: "status", 
+                    label: "Status",
+                    formatter: () => (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Completed
+                      </span>
+                    )
+                  },
+                ]}
+                data={completedMaintenance}
+                isLoading={isLoadingCompleted}
               />
             </CardContent>
           </Card>
         </TabsContent>
         
-        <TabsContent value="clean-accessories" className="mt-6">
+        <TabsContent value="revenue" className="space-y-8">
+          {/* Top Revenue Products */}
           <Card>
             <CardHeader>
-              <CardTitle>Accessories (Quantity &gt; 3 &amp; Cleaned Last Month)</CardTitle>
+              <CardTitle>Highest Revenue Products</CardTitle>
+              <CardDescription>Products generating the most revenue</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable
-                title="Recently Cleaned Accessories"
-                description="Accessories with good availability and recent cleaning"
+                title=""
                 columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'users.name', label: 'Owner' },
-                  { key: 'rental_price', label: 'Price' },
-                  { key: 'available_quantity', label: 'Quantity' },
-                  { key: 'maintenance[0].last_cleaned', label: 'Last Cleaned' },
+                  { key: "name", label: "Product Name" },
+                  { key: "category", label: "Category" },
+                  { key: "sub_category", label: "Subcategory" },
+                  { 
+                    key: "total_revenue", 
+                    label: "Total Revenue",
+                    formatter: (value) => `$${parseFloat(value).toFixed(2)}`
+                  },
+                  { 
+                    key: "rental_price", 
+                    label: "Price per Day",
+                    formatter: (value) => `$${parseFloat(value).toFixed(2)}`
+                  },
                 ]}
-                data={cleanAccessories}
-                isLoading={isLoadingCleanAccessories}
+                data={topRevenueProducts.filter(product => 
+                  productCategoriesFilter.length === 0 || 
+                  productCategoriesFilter.includes(product.category)
+                )}
+                isLoading={isLoadingTopRevenue}
               />
             </CardContent>
           </Card>
+          
+          {/* Revenue Insights */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue by Category</CardTitle>
+                <CardDescription>Total revenue breakdown by category</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* This would ideally be a chart component */}
+                <div className="h-64 flex items-center justify-center bg-muted rounded-md">
+                  Chart placeholder - Revenue by Category
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Revenue Trends</CardTitle>
+                <CardDescription>Revenue trends over the past 12 months</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* This would ideally be a chart component */}
+                <div className="h-64 flex items-center justify-center bg-muted rounded-md">
+                  Chart placeholder - Monthly Revenue
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
         
-        <TabsContent value="rated-products" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Products by Customer Ratings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                title="Rated Products"
-                description="Products sorted by average customer rating"
-                columns={[
-                  { key: 'name', label: 'Product' },
-                  { key: 'category', label: 'Category' },
-                  { key: 'avg_rating', label: 'Avg Rating' },
-                ]}
-                data={ratedProducts}
-                isLoading={isLoadingRatedProducts}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="renters" className="space-y-8">
+          <Alert variant="default">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Renter Analysis</AlertTitle>
+            <AlertDescription>
+              This feature is coming soon. You'll be able to analyze renter behavior and preferences.
+            </AlertDescription>
+          </Alert>
         </TabsContent>
         
-        <TabsContent value="buyers-sellers" className="mt-6">
+        <TabsContent value="owners" className="space-y-8">
+          <Alert variant="default">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Owner Analysis</AlertTitle>
+            <AlertDescription>
+              This feature is coming soon. You'll be able to analyze owner performance and product listings.
+            </AlertDescription>
+          </Alert>
+        </TabsContent>
+        
+        <TabsContent value="custom" className="space-y-8">
           <Card>
             <CardHeader>
-              <CardTitle>Users Who Both Rent and List Products</CardTitle>
+              <CardTitle>Custom SQL Query</CardTitle>
+              <CardDescription>Run custom SQL queries to analyze your data</CardDescription>
             </CardHeader>
             <CardContent>
-              <DataTable
-                title="Buyers &amp; Sellers"
-                description="Users who both rent products and list their own products"
-                columns={[
-                  { key: 'name', label: 'Name' },
-                  { key: 'email', label: 'Email' },
-                  { key: 'phone', label: 'Phone' },
-                  { key: 'role', label: 'Role' },
-                ]}
-                data={buyersSellers}
-                isLoading={isLoadingBuyersSellers}
-              />
+              <div className="space-y-4">
+                <textarea 
+                  className="w-full h-40 p-4 border border-border rounded-md font-mono text-sm"
+                  placeholder="SELECT * FROM products WHERE category = 'Electronics' LIMIT 10;"
+                  disabled
+                />
+                <Button disabled>Execute Query</Button>
+              </div>
+              
+              <div className="mt-6">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Coming Soon</AlertTitle>
+                  <AlertDescription>
+                    Custom query functionality will be available in a future update. This will require admin privileges.
+                  </AlertDescription>
+                </Alert>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
