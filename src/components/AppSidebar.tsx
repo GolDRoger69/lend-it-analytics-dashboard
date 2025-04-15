@@ -67,7 +67,7 @@ export function AppSidebar({
         <div className="flex items-center justify-between pb-4">
           {!collapsed && (
             <Link to="/" className="flex items-center gap-2">
-              <span className="font-bold text-xl">Leasel</span>
+              <span className="font-bold text-xl">Sidebar</span>
             </Link>
           )}
           <button
