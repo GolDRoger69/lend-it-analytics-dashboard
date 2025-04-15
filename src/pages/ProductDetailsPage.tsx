@@ -20,7 +20,7 @@ export function ProductDetailsPage() {
   const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(new Date(Date.now() + (7 * 24 * 60 * 60 * 1000))); // 7 days from now
   const [isRenting, setIsRenting] = useState(false);
   
-  const { data: product, isLoading, error } = useQuery({
+  const { data: product, isLoading, error, refetch } = useQuery({
     queryKey: ['product', id],
     queryFn: async () => {
       if (!id) throw new Error("Product ID is required");
@@ -95,6 +95,13 @@ export function ProductDetailsPage() {
         return;
       }
       
+      // Check if user is trying to rent their own product
+      if (product && product.owner_id === user.user_id) {
+        toast.error("You cannot rent your own product");
+        setIsRenting(false);
+        return;
+      }
+      
       // Create rental record
       const { data: rental, error: rentalError } = await supabase
         .from('rentals')
@@ -105,7 +112,7 @@ export function ProductDetailsPage() {
             rental_start: selectedStartDate.toISOString().split('T')[0],
             rental_end: selectedEndDate.toISOString().split('T')[0],
             total_cost: totalCost,
-            status: 'active'
+            status: 'active'  // Using 'active' status which should be allowed by the constraint
           }
         ])
         .select();
@@ -134,6 +141,9 @@ export function ProductDetailsPage() {
         ]);
       
       if (paymentError) throw paymentError;
+      
+      // Refetch the product data to update the available quantity
+      await refetch();
       
       toast.success("Product rented successfully!");
       navigate("/dashboard");
@@ -293,7 +303,7 @@ export function ProductDetailsPage() {
                 <Button 
                   className="w-full" 
                   onClick={handleRent}
-                  disabled={!user || isRenting || product.available_quantity < 1}
+                  disabled={!user || isRenting || product.available_quantity < 1 || (product && product.owner_id === user?.user_id)}
                 >
                   {isRenting ? (
                     <>
@@ -302,6 +312,8 @@ export function ProductDetailsPage() {
                     </>
                   ) : product.available_quantity < 1 ? (
                     "Out of Stock"
+                  ) : (product && user && product.owner_id === user.user_id) ? (
+                    "You own this product"
                   ) : (
                     `Rent Now (${product.available_quantity} available)`
                   )}
