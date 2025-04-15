@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -46,7 +45,6 @@ export function ProductDetailsPage() {
       
       if (error) throw error;
       
-      // Calculate average rating
       const ratings = data.reviews.map((review: any) => review.rating);
       const avgRating = ratings.length > 0
         ? ratings.reduce((sum: number, rating: number) => sum + rating, 0) / ratings.length
@@ -55,7 +53,6 @@ export function ProductDetailsPage() {
       return {
         ...data,
         avg_rating: parseFloat(avgRating.toFixed(1)),
-        // Generate placeholder image based on product name
         image_url: `https://placehold.co/600x400?text=${encodeURIComponent(data.name)}`
       };
     }
@@ -78,31 +75,26 @@ export function ProductDetailsPage() {
       return;
     }
     
-    // Calculate rental duration in days
     const durationMs = selectedEndDate.getTime() - selectedStartDate.getTime();
     const durationDays = Math.ceil(durationMs / (1000 * 60 * 60 * 24));
     
-    // Calculate total cost based on rental price and duration
     const totalCost = product ? parseFloat((product.rental_price * durationDays).toFixed(2)) : 0;
     
     setIsRenting(true);
     
     try {
-      // Check if product is available (quantity > 0)
       if (product && product.available_quantity < 1) {
         toast.error("This product is currently not available");
         setIsRenting(false);
         return;
       }
       
-      // Check if user is trying to rent their own product
       if (product && product.owner_id === user.user_id) {
         toast.error("You cannot rent your own product");
         setIsRenting(false);
         return;
       }
       
-      // Create rental record
       const { data: rental, error: rentalError } = await supabase
         .from('rentals')
         .insert([
@@ -112,14 +104,13 @@ export function ProductDetailsPage() {
             rental_start: selectedStartDate.toISOString().split('T')[0],
             rental_end: selectedEndDate.toISOString().split('T')[0],
             total_cost: totalCost,
-            status: 'active'  // Using 'active' status which should be allowed by the constraint
+            status: 'pending'
           }
         ])
         .select();
       
       if (rentalError) throw rentalError;
       
-      // Update product available quantity
       const { error: updateError } = await supabase
         .from('products')
         .update({ available_quantity: product!.available_quantity - 1 })
@@ -127,7 +118,6 @@ export function ProductDetailsPage() {
       
       if (updateError) throw updateError;
       
-      // Create payment record
       const { error: paymentError } = await supabase
         .from('payments')
         .insert([
@@ -142,7 +132,6 @@ export function ProductDetailsPage() {
       
       if (paymentError) throw paymentError;
       
-      // Refetch the product data to update the available quantity
       await refetch();
       
       toast.success("Product rented successfully!");
@@ -156,7 +145,6 @@ export function ProductDetailsPage() {
     }
   };
   
-  // Helper function to render star ratings
   const renderStarRating = (rating: number) => {
     return (
       <div className="flex items-center">
@@ -193,10 +181,12 @@ export function ProductDetailsPage() {
     );
   }
   
+  const isOwner = user && product && user.user_id === product.owner_id;
+  const canRentProduct = user && (user.role === "owner" || user.role === "both") && !isOwner;
+  
   return (
     <div className="mx-auto max-w-6xl">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Product Image */}
         <div className="relative">
           <img
             src={product.image_url}
@@ -210,7 +200,6 @@ export function ProductDetailsPage() {
           </div>
         </div>
         
-        {/* Product Details */}
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between">
@@ -230,107 +219,119 @@ export function ProductDetailsPage() {
           
           <Separator />
           
-          {/* Rental Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Rent This Item</CardTitle>
-              <CardDescription>
-                Select your rental dates
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                <div>
-                  <p className="mb-2 font-medium">Start Date</p>
-                  <div className="border rounded-md p-2">
-                    <Calendar
-                      mode="single"
-                      selected={selectedStartDate}
-                      onSelect={setSelectedStartDate}
-                      disabled={(date) => date < new Date()}
-                    />
+          {canRentProduct ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Rent This Item</CardTitle>
+                <CardDescription>
+                  Select your rental dates
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                  <div>
+                    <p className="mb-2 font-medium">Start Date</p>
+                    <div className="border rounded-md p-2">
+                      <Calendar
+                        mode="single"
+                        selected={selectedStartDate}
+                        onSelect={setSelectedStartDate}
+                        disabled={(date) => date < new Date()}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="mb-2 font-medium">End Date</p>
-                  <div className="border rounded-md p-2">
-                    <Calendar
-                      mode="single"
-                      selected={selectedEndDate}
-                      onSelect={setSelectedEndDate}
-                      disabled={(date) => date < (selectedStartDate || new Date())}
-                    />
+                  <div>
+                    <p className="mb-2 font-medium">End Date</p>
+                    <div className="border rounded-md p-2">
+                      <Calendar
+                        mode="single"
+                        selected={selectedEndDate}
+                        onSelect={setSelectedEndDate}
+                        disabled={(date) => date < (selectedStartDate || new Date())}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="bg-muted p-4 rounded-md">
-                <div className="flex justify-between mb-2">
-                  <span>Price per day:</span>
-                  <span>${product.rental_price}</span>
                 </div>
                 
-                {selectedStartDate && selectedEndDate && (
-                  <>
-                    <div className="flex justify-between mb-2">
-                      <span>Duration:</span>
-                      <span>
-                        {Math.ceil(
-                          (selectedEndDate.getTime() - selectedStartDate.getTime()) / 
-                          (1000 * 60 * 60 * 24)
-                        )} days
-                      </span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between font-semibold">
-                      <span>Total:</span>
-                      <span>
-                        ${(
-                          product.rental_price * 
-                          Math.ceil(
+                <div className="bg-muted p-4 rounded-md">
+                  <div className="flex justify-between mb-2">
+                    <span>Price per day:</span>
+                    <span>${product.rental_price}</span>
+                  </div>
+                  
+                  {selectedStartDate && selectedEndDate && (
+                    <>
+                      <div className="flex justify-between mb-2">
+                        <span>Duration:</span>
+                        <span>
+                          {Math.ceil(
                             (selectedEndDate.getTime() - selectedStartDate.getTime()) / 
                             (1000 * 60 * 60 * 24)
-                          )
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter>
-              <div className="w-full space-y-2">
-                <Button 
-                  className="w-full" 
-                  onClick={handleRent}
-                  disabled={!user || isRenting || product.available_quantity < 1 || (product && product.owner_id === user?.user_id)}
-                >
-                  {isRenting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
+                          )} days
+                        </span>
+                      </div>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold">
+                        <span>Total:</span>
+                        <span>
+                          ${(
+                            product.rental_price * 
+                            Math.ceil(
+                              (selectedEndDate.getTime() - selectedStartDate.getTime()) / 
+                              (1000 * 60 * 60 * 24)
+                            )
+                          ).toFixed(2)}
+                        </span>
+                      </div>
                     </>
-                  ) : product.available_quantity < 1 ? (
-                    "Out of Stock"
-                  ) : (product && user && product.owner_id === user.user_id) ? (
-                    "You own this product"
-                  ) : (
-                    `Rent Now (${product.available_quantity} available)`
                   )}
-                </Button>
-                
-                {!user && (
-                  <p className="text-center text-sm text-muted-foreground">
-                    Please <a href="/login" className="underline text-primary">log in</a> to rent this item
-                  </p>
-                )}
-              </div>
-            </CardFooter>
-          </Card>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <div className="w-full space-y-2">
+                  <Button 
+                    className="w-full" 
+                    onClick={handleRent}
+                    disabled={!user || isRenting || product.available_quantity < 1}
+                  >
+                    {isRenting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : product.available_quantity < 1 ? (
+                      "Out of Stock"
+                    ) : (
+                      `Rent Now (${product.available_quantity} available)`
+                    )}
+                  </Button>
+                  
+                  {!user && (
+                    <p className="text-center text-sm text-muted-foreground">
+                      Please <a href="/login" className="underline text-primary">log in</a> to rent this item
+                    </p>
+                  )}
+                </div>
+              </CardFooter>
+            </Card>
+          ) : isOwner ? (
+            <Card>
+              <CardContent className="py-6">
+                <p className="text-center font-medium">You are the owner of this product</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-6">
+                <p className="text-center text-muted-foreground">
+                  Only buyers can rent products. Your account is set as a seller/renter.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
       
-      {/* Product Reviews */}
       <div className="mt-12">
         <h2 className="text-2xl font-semibold mb-6">Reviews</h2>
         
