@@ -132,10 +132,10 @@ export function RegisterPage() {
                   <RadioGroupItem value="owner" id="owner" />
                   <Label htmlFor="owner">List my items for rent (Product Lister)</Label>
                 </div>
-                <div className="flex items-center space-x-2">
+{/*                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="both" id="both" />
                   <Label htmlFor="both">Do both</Label>
-                </div>
+                </div> */}
               </RadioGroup>
             </div>
             <Button type="submit" className="w-full mt-6" disabled={isLoading} variant="default">
