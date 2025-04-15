@@ -15,7 +15,6 @@ import { toast } from "sonner";
 interface DataTableColumn {
   key: string;
   label: string;
-  formatter?: (value: any) => React.ReactNode;
 }
 
 // Define product types to fix TypeScript errors
@@ -116,53 +115,16 @@ export function DataQueriesPage() {
     queryKey: ['topRentedProducts'],
     queryFn: async () => {
       try {
-        // Let's use the fallback method directly since the RPC function doesn't exist
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('rentals')
-          .select(`
-            product_id,
-            products!inner (
-              name,
-              category,
-              sub_category,
-              rental_price
-            )
-          `);
+        // Use the SQL function get_top_rented_products
+        const { data, error } = await supabase
+          .rpc('get_top_rented_products', { limit_count: 10 });
         
-        if (fallbackError) {
-          toast.error(`Error fetching top rented products: ${fallbackError.message}`);
-          throw fallbackError;
+        if (error) {
+          toast.error(`Error fetching top rented products: ${error.message}`);
+          throw error;
         }
         
-        // Count occurrences of each product_id
-        const productCounts: Record<number, number> = {};
-        fallbackData.forEach(rental => {
-          const productId = rental.product_id;
-          productCounts[productId] = (productCounts[productId] || 0) + 1;
-        });
-        
-        // Create a list of unique products with their rental counts
-        const uniqueProducts: TopRentedProduct[] = [];
-        const seenProducts = new Set<number>();
-        
-        for (const rental of fallbackData) {
-          if (!seenProducts.has(rental.product_id)) {
-            seenProducts.add(rental.product_id);
-            uniqueProducts.push({
-              product_id: rental.product_id,
-              name: rental.products.name,
-              category: rental.products.category,
-              sub_category: rental.products.sub_category,
-              rental_price: rental.products.rental_price,
-              rental_count: productCounts[rental.product_id]
-            });
-          }
-        }
-        
-        // Sort by rental_count in descending order and take the top 10
-        return uniqueProducts
-          .sort((a, b) => b.rental_count - a.rental_count)
-          .slice(0, 10);
+        return data || [];
       } catch (error) {
         console.error("Error in topRentedProducts query:", error);
         return [];
@@ -175,55 +137,16 @@ export function DataQueriesPage() {
     queryKey: ['topRevenueProducts'],
     queryFn: async () => {
       try {
-        // Use fallback method since the RPC function doesn't exist
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('rentals')
-          .select(`
-            product_id,
-            total_cost,
-            products!inner (
-              name,
-              category,
-              sub_category,
-              rental_price
-            )
-          `);
+        // Use the SQL function get_top_revenue_products
+        const { data, error } = await supabase
+          .rpc('get_top_revenue_products', { limit_count: 10 });
         
-        if (fallbackError) {
-          toast.error(`Error fetching top revenue products: ${fallbackError.message}`);
-          throw fallbackError;
+        if (error) {
+          toast.error(`Error fetching top revenue products: ${error.message}`);
+          throw error;
         }
         
-        // Sum total_cost for each product_id
-        const productRevenue: Record<number, number> = {};
-        fallbackData.forEach(rental => {
-          const productId = rental.product_id;
-          productRevenue[productId] = (productRevenue[productId] || 0) + parseFloat(rental.total_cost);
-        });
-        
-        // Create a list of unique products with their total revenue
-        const uniqueProducts: TopRevenueProduct[] = [];
-        const seenProducts = new Set<number>();
-        
-        for (const rental of fallbackData) {
-          if (!seenProducts.has(rental.product_id)) {
-            seenProducts.add(rental.product_id);
-            uniqueProducts.push({
-              product_id: rental.product_id,
-              name: rental.products.name,
-              category: rental.products.category,
-              sub_category: rental.products.sub_category,
-              rental_price: rental.products.rental_price,
-              total_revenue: productRevenue[rental.product_id]
-            });
-          }
-        }
-        
-        // Sort by total_revenue in descending order and take the top 10
-        return uniqueProducts
-          .sort((a, b) => (typeof b.total_revenue === 'number' && typeof a.total_revenue === 'number') ? 
-            b.total_revenue - a.total_revenue : 0)
-          .slice(0, 10);
+        return data || [];
       } catch (error) {
         console.error("Error in topRevenueProducts query:", error);
         return [];
@@ -236,30 +159,16 @@ export function DataQueriesPage() {
     queryKey: ['unrentedProducts'],
     queryFn: async () => {
       try {
-        // Use fallback method since the RPC function doesn't exist
-        const { data: products, error: productsError } = await supabase
-          .from('products')
-          .select('*');
+        // Use the SQL function get_unrented_products
+        const { data, error } = await supabase
+          .rpc('get_unrented_products');
         
-        if (productsError) {
-          toast.error(`Error fetching products: ${productsError.message}`);
-          throw productsError;
+        if (error) {
+          toast.error(`Error fetching unrented products: ${error.message}`);
+          throw error;
         }
         
-        const { data: rentals, error: rentalsError } = await supabase
-          .from('rentals')
-          .select('product_id');
-        
-        if (rentalsError) {
-          toast.error(`Error fetching rentals: ${rentalsError.message}`);
-          throw rentalsError;
-        }
-        
-        // Get all product IDs that have been rented
-        const rentedProductIds = new Set(rentals.map(rental => rental.product_id));
-        
-        // Filter products to get only those that haven't been rented
-        return products.filter(product => !rentedProductIds.has(product.product_id));
+        return data || [];
       } catch (error) {
         console.error("Error in unrentedProducts query:", error);
         return [];

@@ -107,9 +107,11 @@ export function RevenueReportsPage() {
     }
   });
   
-  // Chart data for visualization
+  // Chart data for visualization - Truncate long product names and ensure proper formatting
   const chartData = topProducts.map((product: any) => ({
-    name: product.product_name.substring(0, 20) + (product.product_name.length > 20 ? '...' : ''),
+    name: product.product_name.length > 15 
+      ? product.product_name.substring(0, 15) + '...'
+      : product.product_name,
     value: product.revenue
   }));
 
@@ -119,7 +121,7 @@ export function RevenueReportsPage() {
       <p className="text-muted-foreground">Revenue analysis and top performing products.</p>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Top 5 Revenue Generating Products</CardTitle>
           </CardHeader>
@@ -135,11 +137,17 @@ export function RevenueReportsPage() {
                       top: 5,
                       right: 30,
                       left: 20,
-                      bottom: 30,
+                      bottom: 60, // Increased bottom margin to accommodate labels
                     }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45} 
+                      textAnchor="end"
+                      height={60} 
+                      interval={0} // Force all labels to show
+                    />
                     <YAxis />
                     <Tooltip formatter={(value) => `$${value}`} />
                     <Bar dataKey="value" fill="#8884d8" />

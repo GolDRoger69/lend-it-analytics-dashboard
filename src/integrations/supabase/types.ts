@@ -240,7 +240,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_top_rented_products: {
+        Args: { limit_count: number }
+        Returns: {
+          product_id: number
+          name: string
+          category: string
+          sub_category: string
+          rental_price: number
+          rental_count: number
+        }[]
+      }
+      get_top_revenue_products: {
+        Args: { limit_count: number }
+        Returns: {
+          product_id: number
+          name: string
+          category: string
+          sub_category: string
+          rental_price: number
+          total_revenue: number
+        }[]
+      }
+      get_unrented_products: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          product_id: number
+          name: string
+          category: string
+          sub_category: string
+          rental_price: number
+          available_quantity: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
