@@ -229,26 +229,28 @@ export function ProductDetailsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <div>
                   <p className="mb-2 font-medium">Start Date</p>
-                  <Calendar
-                    mode="single"
-                    selected={selectedStartDate}
-                    onSelect={setSelectedStartDate}
-                    disabled={(date) => date < new Date()}
-                    className="border rounded-md"
-                  />
+                  <div className="border rounded-md p-2">
+                    <Calendar
+                      mode="single"
+                      selected={selectedStartDate}
+                      onSelect={setSelectedStartDate}
+                      disabled={(date) => date < new Date()}
+                    />
+                  </div>
                 </div>
                 <div>
                   <p className="mb-2 font-medium">End Date</p>
-                  <Calendar
-                    mode="single"
-                    selected={selectedEndDate}
-                    onSelect={setSelectedEndDate}
-                    disabled={(date) => date < (selectedStartDate || new Date())}
-                    className="border rounded-md"
-                  />
+                  <div className="border rounded-md p-2">
+                    <Calendar
+                      mode="single"
+                      selected={selectedEndDate}
+                      onSelect={setSelectedEndDate}
+                      disabled={(date) => date < (selectedStartDate || new Date())}
+                    />
+                  </div>
                 </div>
               </div>
               
