@@ -104,7 +104,7 @@ export function ProductDetailsPage() {
             rental_start: selectedStartDate.toISOString().split('T')[0],
             rental_end: selectedEndDate.toISOString().split('T')[0],
             total_cost: totalCost,
-            status: 'pending'
+            status: 'ongoing'
           }
         ])
         .select();
