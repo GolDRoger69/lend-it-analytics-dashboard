@@ -27,7 +27,11 @@ export function DashboardPage() {
   
   // Calculate total revenue for renter (product owner)
   const totalRevenue = userProducts.reduce((total, product) => {
-    const productRentals = rentalPairs.filter(rental => rental.product_id === product.product_id);
+    // Fixed: Filter using rental information instead of product_id from rentalPairs
+    const productRentals = rentalPairs.filter(rental => {
+      // Match based on product name since product_id isn't available in rentalPairs
+      return product.name === rental.product_name;
+    });
     const productRevenue = productRentals.reduce((sum, rental) => sum + Number(rental.total_cost || 0), 0);
     return total + productRevenue;
   }, 0);
