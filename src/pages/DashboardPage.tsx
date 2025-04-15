@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/ProductCard";
 import { useAuth } from "@/lib/auth-context";
 import { Link } from "react-router-dom";
-import { CalendarCheck2, CircleDollarSign, MessageSquare, ShoppingBag, Users } from "lucide-react";
+import { ShoppingBag, CircleDollarSign, Package } from "lucide-react";
 import { 
   useMyProducts, 
   useMyRentals, 
@@ -25,6 +25,18 @@ export function DashboardPage() {
   const { data: maintenanceRecords = [], isLoading: isLoadingMaintenance } = useMyProductMaintenance(user?.user_id || null);
   const { data: rentalPairs = [], isLoading: isLoadingRentalPairs } = useRentalPairs();
   
+  // Calculate total revenue for renter (product owner)
+  const totalRevenue = userProducts.reduce((total, product) => {
+    const productRentals = rentalPairs.filter(rental => rental.product_id === product.product_id);
+    const productRevenue = productRentals.reduce((sum, rental) => sum + Number(rental.total_cost || 0), 0);
+    return total + productRevenue;
+  }, 0);
+  
+  // Calculate total spent for owner/buyer
+  const totalSpent = userRentals.reduce((total, rental) => {
+    return total + Number(rental.total_cost || 0);
+  }, 0);
+  
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] flex-col gap-4">
@@ -36,6 +48,9 @@ export function DashboardPage() {
     );
   }
   
+  const isRenter = user.role === 'renter' || user.role === 'both';
+  const isOwnerOrBuyer = user.role === 'owner' || user.role === 'both';
+  
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -43,7 +58,7 @@ export function DashboardPage() {
           <h1 className="text-3xl font-bold">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back, {user.name}!</p>
         </div>
-        {user.role === 'owner' && (
+        {isRenter && (
           <Link to="/list-product">
             <Button>+ List New Product</Button>
           </Link>
@@ -53,38 +68,59 @@ export function DashboardPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          {user.role === 'owner' && <TabsTrigger value="my-products">My Products</TabsTrigger>}
-          {user.role === 'owner' && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
+          {isRenter && <TabsTrigger value="my-products">My Products</TabsTrigger>}
+          {isRenter && <TabsTrigger value="maintenance">Maintenance</TabsTrigger>}
           <TabsTrigger value="my-rentals">My Rentals</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-6">
-          {/* Stats overview */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatCard
-              title={user.role === 'owner' ? "Products Listed" : "Products Rented"}
-              value={user.role === 'owner' ? userProducts.length : userRentals.length}
-              icon={<ShoppingBag />}
-              trend={{ value: 5, direction: "up" }}
-            />
-            <StatCard
-              title="Total Revenue"
-              value={`$${user.role === 'owner' ? 3500 : 0}`}
-              icon={<CircleDollarSign />}
-              trend={{ value: 12, direction: "up" }}
-            />
-            <StatCard
-              title="Upcoming Rentals"
-              value="3"
-              icon={<CalendarCheck2 />}
-              trend={{ value: 2, direction: "up" }}
-            />
-            <StatCard
-              title="New Messages"
-              value="7"
-              icon={<MessageSquare />}
-              trend={{ value: 3, direction: "up" }}
-            />
+          {/* Stats overview - Different for each role */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {isRenter && (
+              <>
+                <StatCard
+                  title="Products Listed"
+                  value={userProducts.length}
+                  icon={<Package />}
+                />
+                <StatCard
+                  title="Total Revenue"
+                  value={`$${totalRevenue.toFixed(2)}`}
+                  icon={<CircleDollarSign />}
+                />
+                <Link to="/products" className="block h-full">
+                  <StatCard
+                    title="Rent a Product"
+                    value="Browse Products"
+                    icon={<ShoppingBag />}
+                    className="h-full cursor-pointer hover:bg-accent/50 transition-colors"
+                  />
+                </Link>
+              </>
+            )}
+            
+            {isOwnerOrBuyer && (
+              <>
+                <Link to="/products" className="block h-full">
+                  <StatCard
+                    title="Buy a Product"
+                    value="Browse Products"
+                    icon={<ShoppingBag />}
+                    className="h-full cursor-pointer hover:bg-accent/50 transition-colors"
+                  />
+                </Link>
+                <StatCard
+                  title="Products Bought"
+                  value={userRentals.length}
+                  icon={<Package />}
+                />
+                <StatCard
+                  title="Total Money Spent"
+                  value={`$${totalSpent.toFixed(2)}`}
+                  icon={<CircleDollarSign />}
+                />
+              </>
+            )}
           </div>
           
           {/* Recent activity */}
@@ -95,7 +131,7 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
-                {user.role === 'owner' ? (
+                {isRenter ? (
                   <>
                     <div className="space-y-2">
                       <h3 className="font-semibold">Latest Rentals of Your Products</h3>
@@ -130,7 +166,7 @@ export function DashboardPage() {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <h3 className="font-semibold">Your Recent Rentals</h3>
+                      <h3 className="font-semibold">Your Recent Products</h3>
                       <DataTable
                         title=""
                         columns={[
@@ -177,7 +213,7 @@ export function DashboardPage() {
           </Card>
         </TabsContent>
         
-        {user.role === 'owner' && (
+        {isRenter && (
           <TabsContent value="my-products" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">My Product Listings</h2>
@@ -214,7 +250,7 @@ export function DashboardPage() {
           </TabsContent>
         )}
         
-        {user.role === 'owner' && (
+        {isRenter && (
           <TabsContent value="maintenance" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Product Maintenance</h2>
