@@ -33,7 +33,7 @@ export function HomePage() {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white hover:text-primary">
+                <Button size="lg" className="bg-white text-primary hover:bg-gray-100">
                   Become a Lender
                 </Button>
               </Link>
