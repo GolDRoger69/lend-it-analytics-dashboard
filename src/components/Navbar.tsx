@@ -51,7 +51,7 @@ export function Navbar({ toggleSidebar }: { toggleSidebar: () => void }) {
                 </Button>
               </Link>
               <Link to="/register">
-                <Button variant="outline" className="border-white text-white hover:bg-white hover:text-primary">
+                <Button variant="outline" className="border-white text-white bg-primary-700 hover:bg-white hover:text-primary">
                   Register
                 </Button>
               </Link>
